@@ -3,8 +3,9 @@ use ExtUtils::MakeMaker;
 # the contents of the Makefile that is written.
 WriteMakefile(
 	      NAME	=> 'Term::ReadLine',
-	      VERSION	=> '0.8',
-	      'linkext' => {LINKTYPE => '' },
-	      'dist' => {COMPRESS=>'gzip -9f', SUFFIX=>'gz', 
+	      VERSION_FROM => 'ReadLine/readline.pm',
+	      linkext => {LINKTYPE => '' },
+	      dist => {COMPRESS=>'gzip -9f', SUFFIX=>'gz', 
 			     DIST_DEFAULT => 'all uutardist'},
+	      INSTALLDIRS => 'perl',
 	     );

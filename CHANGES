@@ -1,0 +1,9 @@
+After 0.9:
+	Optional second argument to ->readline;
+	[sg]etHistory, tkRunning features documented;
+	Operate overwriting parameter fixed;
+	AddHistory copied to addhistory in T::R::Perl;
+	[SG]etHistory documented;
+	tkRunning feature documented.
+	eval "" => eval {}
+	local => my

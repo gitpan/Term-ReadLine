@@ -19,7 +19,7 @@ if (%features) {
 } else {
   print $OUT "No additional features present.\n";
 }
-while ( defined ($_ = $term->readline($prompt)) ) {
+while ( defined ($_ = $term->readline($prompt, "exit")) ) {
   $res = eval($_);
   warn $@ if $@;
   print $OUT $res, "\n" unless $@;

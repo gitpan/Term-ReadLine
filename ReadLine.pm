@@ -1,6 +1,6 @@
 =head1 NAME
 
-C<Term::ReadLine>: Perl interface to various C<readline> packages. If
+Term::ReadLine - Perl interface to various C<readline> packages. If
 no real package is found, substitutes stubs instead of basic functions.
 
 =head1 SYNOPSIS
@@ -16,7 +16,9 @@ no real package is found, substitutes stubs instead of basic functions.
     $term->addhistory($_) if /\S/;
   }
 
-=head1 Minimal set of supported functions
+=head1 DESCRIPTION
+
+=head2 Minimal set of supported functions
 
 All the supported functions should be called as methods, i.e., either as 
 
@@ -43,17 +45,28 @@ functions. Argument is the name of the application. Optionally can be
 followed by two arguments for C<IN> and C<OUT> filehandles. These
 arguments should be globs.
 
-=item C<readline>
+=item C<readline(prompt[, preput])>
 
 gets an input line, I<possibly> with actual C<readline>
-support. Trailing newline is removed. Returns C<undef> on C<EOF>.
+support. Trailing newline is removed. Returns C<undef> on C<EOF>. C<preput> 
+is an optional argument meaning the initial value of input. The optional
+argument is granted only if the value C<preput> is in C<Features>.
 
-=item C<addhistory>
+=item C<addhistory(line1, line2, ...)>
 
-adds the line to the history of input, from where it can be used if
+adds the lines to the history of input, from where it can be used if
 the actual C<readline> is present.
 
-=item C<IN>, $C<OUT>
+=item C<SetHistory(line1, line2, ...)>
+
+sets the history of input, from where it can be used if
+the actual C<readline> is present.
+
+=item C<GetHistory>
+
+returns the history of input as a list, if actual C<readline> is present.
+
+=item C<IN>, C<OUT>
 
 return the filehandles for input and output or C<undef> if C<readline>
 input and output cannot be used for Perl.
@@ -77,7 +90,11 @@ minimal interface: C<appname> should be present if the first argument
 to C<new> is recognized, and C<minline> should be present if
 C<MinLine> method is not dummy.  C<autohistory> should be present if
 lines are put into history automatically (maybe subject to
-C<MinLine>), and C<addhistory> if C<addhistory> method is not dummy.
+C<MinLine>), and C<addhistory> if C<addhistory> method is not dummy. 
+C<preput> means the second argument to C<readline> method is processed.
+C<getHistory> and C<setHistory> denote that the corresponding methods are 
+present. C<tkRunning> denotes that a Tk application may run while ReadLine
+is getting input B<(undocumented feature)>.
 
 =back
 
@@ -104,6 +121,8 @@ sub readline {
   $str;
 }
 sub addhistory {}
+sub SetHistory {}
+sub GetHistory {}
 
 sub findConsole {
     my $console;
@@ -162,6 +181,9 @@ sub MinLine { undef }
 sub Features { {} }
 
 package Term::ReadLine;		# So late to allow the above code be defined?
+
+$VERSION = $VERSION = 0.91;
+
 eval "use Term::ReadLine::Gnu;" or eval "use Term::ReadLine::Perl;";
 
 #require FileHandle;

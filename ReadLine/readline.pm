@@ -22,10 +22,14 @@
 ##
 
 package readline;
-#use SelfLoader;
-#@ISA = (SelfLoader);
 
-$autoload_broken = 1;		# currently: defined does not work with a-l
+# Comment these 2 lines and __DATA__ line somewhere below to disable
+# selfloader.
+
+use SelfLoader;
+@ISA = (SelfLoader);
+
+my $autoload_broken = 1;	# currently: defined does not work with a-l
 
 ##
 ## BLURB:
@@ -40,7 +44,7 @@ $autoload_broken = 1;		# currently: defined does not work with a-l
 ## while writing this), and for Roland Schemers whose line_edit.pl I used
 ## as an early basis for this.
 ##
-$version = "940817.008";
+$VERSION = $VERSION = 0.91;
 
 ## 940817.008 - Added $var_CompleteAddsuffix.
 ##		Now recognizes window-change signals (at least on BSD).
@@ -97,6 +101,40 @@ $Tk_toloop = 0;
 
 # Do `$readline::Tk_toloop=1' to make Tk active during readline, 0 to
 # switch off.
+
+# # # # use strict 'vars';
+
+# # # # # Separation into my and vars needs some thought...
+
+# # # # use vars qw(@KeyMap %KeyMap $rl_screen_width $rl_start_default_at_beginning
+# # # # 	    $rl_completion_function $rl_basic_word_break_characters
+# # # # 	    $rl_completer_word_break_characters $rl_special_prefixes
+# # # # 	    $rl_readline_name @rl_History $rl_MaxHistorySize
+# # # # 	    $rl_max_numeric_arg $rl_Operate $rl_DefaultLine 
+# # # # 	    $KillBuffer $dumb_term $stdin_not_tty $InsertMode 
+# # # # 	    $rl_NoInitFromFile);
+
+# # # # my ($InputLocMsg, $term_OUT, $term_IN);
+# # # # my ($winsz_t, $TIOCGWINSZ, $winsz, $rl_margin, $hooj, $force_redraw);
+# # # # my ($hook, %var_HorizontalScrollMode, %var_EditingMode, %var_OutputMeta);
+# # # # my ($var_HorizontalScrollMode, $var_EditingMode, $var_OutputMeta);
+# # # # my (%var_ConvertMeta, $var_ConvertMeta, %var_MarkModifiedLines, $var_MarkModifiedLines);
+# # # # my ($term_readkey, $inDOS);
+# # # # my (%var_PreferVisibleBell, $var_PreferVisibleBell);
+# # # # my (%var_TcshCompleteMode, $var_TcshCompleteMode);
+# # # # my (%var_CompleteAddsuffix, $var_CompleteAddsuffix);
+# # # # my ($minlength, @winchhooks);
+# # # # my ($BRKINT, $ECHO, $FIONREAD, $ICANON, $ICRNL, $IGNBRK, $IGNCR, $INLCR,
+# # # #     $ISIG, $ISTRIP, $NCCS, $OPOST, $RAW, $TCGETS, $TCOON, $TCSETS, $TCXONC,
+# # # #     $TERMIOS_CFLAG, $TERMIOS_IFLAG, $TERMIOS_LFLAG, $TERMIOS_NORMAL_IOFF,
+# # # #     $TERMIOS_NORMAL_ION, $TERMIOS_NORMAL_LOFF, $TERMIOS_NORMAL_LON, 
+# # # #     $TERMIOS_NORMAL_OOFF, $TERMIOS_NORMAL_OON, $TERMIOS_OFLAG, 
+# # # #     $TERMIOS_READLINE_IOFF, $TERMIOS_READLINE_ION, $TERMIOS_READLINE_LOFF, 
+# # # #     $TERMIOS_READLINE_LON, $TERMIOS_READLINE_OOFF, $TERMIOS_READLINE_OON, 
+# # # #     $TERMIOS_VMIN, $TERMIOS_VTIME, $TIOCGETP, $TIOCGWINSZ, $TIOCSETP, 
+# # # #     $fion, $fionread_t, $mode, $sgttyb_t, 
+# # # #     $termios, $termios_t, $winsz, $winsz_t);
+# # # # my ($line, $initialized, $term_readkey);
 
 ##
 ## What's Cool
@@ -204,13 +242,14 @@ $Tk_toloop = 0;
 
 sub get_window_size
 {
-    local($sig) = @_;
+    my $sig = shift;
+    my ($num_cols,$num_rows);
+    
     if (defined $term_readkey) {
-	 local($num_cols,$num_rows) = 
-	   Term::ReadKey::GetTerminalSize($term_OUT);
+	 ($num_cols,$num_rows) =  Term::ReadKey::GetTerminalSize($term_OUT);
 	 $rl_screen_width = $num_cols if defined($num_cols) && $num_cols;
     } elsif (ioctl($term_IN,$TIOCGWINSZ,$winsz)) {
-	 local($num_rows,$num_cols) = unpack($winsz_t,$winsz);
+	 ($num_rows,$num_cols) = unpack($winsz_t,$winsz);
 	 $rl_screen_width = $num_cols if defined($num_cols) && $num_cols;
     }
     $rl_margin = int($rl_screen_width/3);
@@ -222,6 +261,7 @@ sub get_window_size
     for $hook (@winchhooks) {
       eval {&$hook()}; warn $@ if $@;
     }
+    local $^W = 0;		# WINCH may be illegal...
     $SIG{'WINCH'} = "readline::get_window_size";
 }
 
@@ -247,7 +287,7 @@ sub preinit
     $var_OutputMeta{'On'} = 1;
 
     ## not yet supported... always off
-    $var_ConvertMeta = off;
+    $var_ConvertMeta = 0;
     $var_ConvertMeta{'Off'} = 0;
     $var_ConvertMeta{'On'} = 1;
 
@@ -277,11 +317,13 @@ sub preinit
     @winchhooks = ();
 
     $inDOS = defined $ENV{OS2_SHELL} unless defined $inDOS;
-    eval 'require Term::ReadKey; $term_readkey++';
+    eval {
+      require Term::ReadKey; $term_readkey++;
+    };
     if ($@) {
-      eval 'require "ioctl.pl"'; ## try to get, don't die if not found.
-      eval 'require "sys/ioctl.ph"'; ## try to get, don't die if not found.
-      eval 'require "sgtty.ph"'; ## try to get, don't die if not found.
+      eval {require "ioctl.pl"}; ## try to get, don't die if not found.
+      eval {require "sys/ioctl.ph"}; ## try to get, don't die if not found.
+      eval {require "sgtty.ph"}; ## try to get, don't die if not found.
       if ($inDOS and !defined $TIOCGWINSZ) {
 	  $TIOCGWINSZ=0;
 	  $TIOCGETP=1;
@@ -518,7 +560,7 @@ sub preinit
 		  qq/"\0\166"/, 'EndOfHistory', # 118: <Ctrl>+<Page Down>
 		  qq/"\0\167"/, 'BackwardKillLine', # 119: <Ctrl>+<Home>
 		  qq/"\0\204"/, 'BeginningOfHistory', # 132: <Ctrl>+<Page Up>
-		  qq/"\0\213"/, 'KillWord', # 147: <Ctrl>+<Delete>
+		  qq/"\0\223"/, 'KillWord', # 147: <Ctrl>+<Delete>
 		 )
 		 : ( 'C-@',	'Ding')
 		)
@@ -566,7 +608,7 @@ sub init
 sub InitKeymap
 {
     local(*KeyMap) = shift(@_);
-    local($func) = $KeyMap{'default'} = 'F_'.shift(@_);
+    my $func = $KeyMap{'default'} = 'F_'.shift(@_);
     $KeyMap{'name'} = shift(@_);
     ### Temporarily disabled
     die qq/Bad default function [$func] for keymap "$KeyMap{'name'}"/
@@ -625,7 +667,7 @@ sub InitKeymap
 sub actually_do_binding
 {
   ##
-  ## actually_do_binding($function, @sequence)
+  ## actually_do_binding($function1, \@sequence1, ...)
   ##
   ## Actually inserts the binding for @sequence to $function into the
   ## current map.  @sequence is an array of character ordinals.
@@ -635,9 +677,24 @@ sub actually_do_binding
   ##
   ## $Function will have an implicit "F_" prepended to it.
   ##
-  local($func, $key, @keys) = @_;
-  $key += 0;
-  if (@keys == 0) {
+  while (@_) {
+    my $func = shift;
+    my ($key, @keys) = @{shift()};
+    $key += 0;
+    local(*KeyMap) = *KeyMap;
+    my $map;
+    while (@keys) {
+      if (defined($KeyMap[$key]) && ($KeyMap[$key] ne 'F_PrefixMeta')) {
+	warn "Warning$InputLocMsg: ".
+	  "Re-binding char #$key from [$KeyMap[$key]] to meta.\n";
+      }
+      $KeyMap[$key] = 'F_PrefixMeta';
+      $map = "$KeyMap{'name'}_$key";
+      InitKeymap(*$map, 'Ding', $map) if !defined(%$map);
+      *KeyMap = *$map;
+      $key = shift @keys;
+      #&actually_do_binding($func, \@keys);
+    }
     if (defined($KeyMap[$key]) && $KeyMap[$key] eq 'F_PrefixMeta'
 	&& $func ne 'PrefixMeta')
       {
@@ -645,22 +702,12 @@ sub actually_do_binding
 	  " Re-binding char #$key to non-meta ($func)\n";
       }
     $KeyMap[$key] = "F_$func";
-  } else {
-    if (defined($KeyMap[$key]) && ($KeyMap[$key] ne 'F_PrefixMeta')) {
-      warn "Warning$InputLocMsg: ".
-	"Re-binding char #$key from [$KeyMap[$key]] to meta.\n";
-    }
-    $KeyMap[$key] = 'F_PrefixMeta';
-    local($map) = "$KeyMap{'name'}_$key";
-    eval("&InitKeymap(*$map, 'Ding', '$map') if !defined(%$map);1")
-      || die "$@";
-    eval "{local(*KeyMap)=*$map; &actually_do_binding($func,\@keys);}";
   }
 }
 
 sub rl_bind
 {
-    local(@keys, $key, $func, $ord);
+    my (@keys, $key, $func, $ord, @arr);
 
     while (defined($key = shift(@_)) && defined($func = shift(@_)))
     {
@@ -711,7 +758,7 @@ sub rl_bind
 	    }
 	} else {
 	    ## ol-dstyle binding... only one key (or Meta+key)
-	    local($isctrl, $orig) = (0, $key);
+	    my ($isctrl, $orig) = (0, $key);
 	    $isctrl = $key =~ s/(C|Control|CTRL)-//i;
 	    push(@keys, ord("\e")) if $key =~ s/(M|Meta)-//i; ## is meta?
 	    ## Isolate key part. This matches GNU's implementation.
@@ -735,23 +782,25 @@ sub rl_bind
 	## Now do the mapping of the sequence represented in @keys
 	 #
 	# print "&actually_do_binding($func, @keys)\n"; ##DEBUG
-	&actually_do_binding($func, @keys);
+	push @arr, $func, [@keys];
+	#&actually_do_binding($func, \@keys);
     }
+    &actually_do_binding(@arr);
 }
 
 sub F_ReReadInitFile
 {
-    local($file) = $ENV{'HOME'}."/.inputrc";
+    my ($file) = $ENV{'HOME'}."/.inputrc";
     return if !open(RC, $file);
-    local(@action) = ('exec'); ## exec, skip, ignore (until appropriate endif)
-    local(@level) = ();        ## if, else
+    my (@action) = ('exec'); ## exec, skip, ignore (until appropriate endif)
+    my (@level) = ();        ## if, else
 
     while (<RC>) {
 	s/^\s*//;
 	next if m/^#/;
 	$InputLocMsg = " [$file line $.]";
 	if (/^\$if\s+/) {
-	    local($test) = $';
+	    my($test) = $';
 	    push(@level, 'if');
 	    if ($action[$#action] ne 'exec') {
 		## We're supposed to be skipping or ignoring this level,
@@ -799,95 +848,6 @@ sub F_ReReadInitFile
     ##undef(&F_ReReadInitFile); ## you can do this if you're low on memory
 }
 
-#sub F_ReReadInitFile;
-sub rl_getc;
-sub F_ForwardChar;
-sub F_BackwardChar;
-sub F_BeginningOfLine;
-sub F_EndOfLine;
-sub F_ForwardWord;
-sub F_BackwardWord;
-sub F_RedrawCurrentLine;
-sub F_ClearScreen;
-sub F_SelfInsert;
-sub F_QuotedInsert;
-sub F_TabInsert;
-sub F_AcceptLine;
-sub F_OperateAndGetNext;
-sub F_BackwardDeleteChar;
-sub F_DeleteChar;
-sub F_UnixWordRubout;
-sub F_UnixLineDiscard;
-sub F_UpcaseWord;
-sub F_DownCaseWord;
-sub F_CapitalizeWord;
-sub F_TransposeWords;
-sub F_TransposeChars;
-sub F_PreviousHistory;
-sub F_NextHistory;
-sub F_BeginningOfHistory;
-sub F_EndOfHistory;
-sub F_ReverseSearchHistory;
-sub F_ForwardSearchHistory;
-sub F_HistorySearchBackward;
-sub F_HistorySearchForward;
-sub F_KillLine;
-sub F_BackwardKillLine;
-sub F_Yank;
-sub F_YankPop;
-sub F_YankNthArg;
-sub F_KillWord;
-sub F_BackwardKillWord;
-sub F_Abort;
-sub F_DoLowercaseVersion;
-sub F_Undo;
-sub F_RevertLine;
-sub F_EmacsEditingMode;
-sub F_ToggleEditingMode;
-sub F_Interrupt;
-sub F_PrefixMeta;
-sub F_UniversalArgument;
-sub F_DigitArgument;
-sub F_OverwriteMode;
-sub F_InsertMode;
-sub F_ToggleInsertMode;
-sub F_Suspend;
-sub F_Ding;
-sub F_PossibleCompletions;
-sub F_Complete;
-
-1;
-#__DATA__
-
-# From here on anything may be autoloaded
-
-sub rl_getc {
-	  if (defined $term_readkey) { # XXXX ???
-	    #print "b"; sleep 1;
-	    $Tk_count_rk++;
-	    &Tk_loop if $Tk_toloop;
-	    $key = Term::ReadKey::ReadKey(0, $term_IN);
-	    #if($key eq "") {$key = Term::ReadKey::ReadKey(0,$term_IN)} # Still buggy
-	    #print "a"; sleep 1;
-	    #print "Got `$key', ", ord($key), "", length($key), "\n";
-	  } else {
-	    &Tk_loop if $Tk_toloop;
-	    $key = getc $term_IN;
-	  }
-}
-
-sub Tk_handle {$Tk_giveup = 1;$Tk_count_handle++}
-
-sub Tk_loop {
-  $Tk_count_DoOne++, Tk::DoOneEvent(0) until $Tk_giveup;
-  $Tk_count_loop++;
-  $Tk_giveup = 0;
-}
-
-sub Tk_register_Tk {
-  $Tk_registered++ || Tk->fileevent($term_IN,'readable',\&Tk_handle);
-  # $Tk_toloop = 1;
-}
 
 ##
 ## This is it. Called as &readline'readline($prompt, $default),
@@ -895,11 +855,11 @@ sub Tk_register_Tk {
 ##
 sub readline
 {
-    if (defined &Tk::fileevent && !$Tk_registered) {
-      Tk_register;
+    if ($Tk_toloop && defined &Tk::fileevent && !$Tk_registered) {
+      Tk_register_Tk();
     }
     if ($stdin_not_tty) {
-        &Tk_loop if $Tk_toloop;
+        #&Tk_loop if $Tk_toloop;
 	return undef if !defined($line = <$term_IN>);
 	chop($line);
 	return $line;
@@ -967,9 +927,7 @@ sub readline
     while (!defined($AcceptLine)) {
 	## get a character of input
 	if (!defined($pending)) {
-	    $input = rl_getc; # bug in debugger, returns 42.
-#	    $input = getc $term_IN;
-	    #print STDOUT "`$input'";
+	    $input = rl_getc(); # bug in debugger, returns 42. - No more!
 	} else {
 	    $input = substr($pending, 0, 1);
 	    substr($pending, 0, 1) = '';
@@ -986,8 +944,7 @@ sub readline
     }
 
     ## set default for next input line
-    $rl_DefaultLine = '';
-    $$defaultLine = $rl_Operate ? $rl_History[$rl_HistoryIndex] : '';
+    $rl_DefaultLine = $rl_Operate ? $rl_History[$rl_HistoryIndex] : '';
 
     undef @undo; ## Release the memory.
     &ResetTTY;   ## Restore the tty state.
@@ -998,19 +955,386 @@ sub readline
     $AcceptLine; ## return the line accepted.
 }
 
-
-
-sub max     { $_[0] > $_[1] ? $_[0] : $_[1]; }
-sub min     { $_[0] < $_[1] ? $_[0] : $_[1]; }
-sub isupper { ord($_[0]) >= ord('A') && ord($_[0]) <= ord('Z'); }
-sub islower { ord($_[0]) >= ord('a') && ord($_[0]) <= ord('z'); }
-sub toupper { &islower ? pack('c', ord($_[0])-ord('a')+ord('A')) : $_[0];}
-sub tolower { &isupper ? pack('c', ord($_[0])-ord('A')+ord('a')) : $_[0];}
-
 ## ctrl(ord('a')) will return the ordinal for Ctrl-A.
 sub ctrl {
   $_[0] & ~ (($_[0]>=ord('a') && $_[0]<=ord('z')) ? 0x60 : 0x40);
 }
+
+
+sub SetTTY {
+    return if $dumb_term || $stdin_not_tty;
+    #return system 'stty raw -echo' if defined &DB::DB;
+    if (defined $term_readkey) {
+      return Term::ReadKey::ReadMode(4, $term_IN);
+    }
+#   system 'stty raw -echo';
+
+    $sgttyb = ''; ## just to quiet "perl -w";
+    ioctl($term_IN,$TIOCGETP,$sgttyb) || die "Can't ioctl TIOCGETP: $!";
+    @tty_buf = unpack($sgttyb_t,$sgttyb);
+    if (defined $ENV{OS2_SHELL}) {
+      $tty_buf[3] &= ~$mode;
+      $tty_buf[3] &= ~$ECHO;
+    } else {
+      $tty_buf[4] |= $mode;
+      $tty_buf[4] &= ~$ECHO;
+    }
+    $sgttyb = pack($sgttyb_t,@tty_buf);
+    ioctl($term_IN,$TIOCSETP,$sgttyb) || die "Can't ioctl TIOCSETP: $!";
+}
+
+sub ResetTTY {
+    return if $dumb_term || $stdin_not_tty;
+    #return system 'stty -raw echo' if defined &DB::DB;
+    if (defined $term_readkey) {
+      return Term::ReadKey::ReadMode(0, $term_IN);
+    }
+
+#   system 'stty -raw echo';
+
+    ioctl($term_IN,$TIOCGETP,$sgttyb) || die "Can't ioctl TIOCGETP: $!";
+    @tty_buf = unpack($sgttyb_t,$sgttyb);
+    if (defined $ENV{OS2_SHELL}) {
+      $tty_buf[3] |= $mode;
+      $tty_buf[3] |= $ECHO;
+    } else {
+      $tty_buf[4] &= ~$mode;
+      $tty_buf[4] |= $ECHO;
+    }
+    $sgttyb = pack($sgttyb_t,@tty_buf);
+    ioctl($term_IN,$TIOCSETP,$sgttyb) || die "Can't ioctl TIOCSETP: $!";
+}
+
+##
+## redisplay()
+##
+## Updates the screen to reflect the current $line.
+##
+## For the purposes of this routine, we prepend the prompt to a local copy of
+## $line so that we display the prompt as well.  We then modify it to reflect
+## that some characters have different sizes (i.e. control-C is represented
+## as ^C, tabs are expanded, etc.)
+##
+## This routine is somewhat complicated by two-byte characters.... must
+## make sure never to try do display just half of one.
+##
+## NOTE: If an argument is given, it is used instead of the prompt.
+##
+## This is some nasty code.
+##
+sub redisplay
+{
+    ## local $line has prompt also; take that into account with $D.
+    local($prompt) = defined($_[0]) ? $_[0] : $prompt;
+    local($line) = $prompt . $line;
+    local($D) = $D + length($prompt);
+
+    ##
+    ## If the line contains anything that might require special processing
+    ## for displaying (such as tabs, control characters, etc.), we will
+    ## take care of that now....
+    ##
+    if ($line =~ m/[^\x20-\x7e]/)
+    {
+	local($new, $Dinc, $c) = ('', 0);
+
+	## Look at each character of $line in turn.....
+        for ($i = 0; $i < length($line); $i++) {
+	    $c = substr($line, $i, 1);
+
+	    ## A tab to expand...
+	    if ($c eq "\t") {
+		$c = ' ' x  (8 - (($i-length($prompt)) % 8));
+
+	    ## A control character....
+	    } elsif ($c =~ tr/\000-\037//) {
+		$c = sprintf("^%c", ord($c)+ord('@'));
+
+	    ## the delete character....
+	    } elsif (ord($c) == 127) {
+		$c = '^?';
+	    }
+	    $new .= $c;
+
+	    ## Bump over $D if this char is expanded and left of $D.
+	    $Dinc += length($c) - 1 if (length($c) > 1 && $i < $D);
+	}
+	$line = $new;
+	$D += $Dinc;
+    }
+
+    ##
+    ## Now $line is what we'd like to display.
+    ##
+    ## If it's too long to fit on the line, we must decide what we can fit.
+    ##
+    ## If we end up moving the screen index ($si) [index of the leftmost
+    ## character on the screen], to some place other than the front of the
+    ## the line, we'll have to make sure that it's not on the first byte of
+    ## a 2-byte character, 'cause we'll be placing a '<' marker there, and
+    ## that would screw up the 2-byte character.
+    ##
+    ## Similarly, if the line needs chopped off, we make sure that the
+    ## placement of the tailing '>' won't screw up any 2-byte character in
+    ## the vicinity.
+    ##
+    if ($D == length($prompt)) {
+	$si = 0;   ## display from the beginning....
+    } elsif ($si >= $D) {
+	$si = &max(0, $D - $rl_margin);
+	$si-- if $si != length($prompt) && !&OnSecondByte($si);
+    } elsif ($si + $rl_screen_width <= $D) {
+	$si = &min(length($line), ($D - $rl_screen_width) + $rl_margin);
+	$si-- if $si != length($prompt) && !&OnSecondByte($si);
+    } else {
+	## Fine as-is.... don't need to change $si.
+    }
+    substr($line, $si, 1) = '<' if $si != 0; ## put the "chopped-off" marker
+
+    $thislen = &min(length($line) - $si, $rl_screen_width);
+    if ($si + $thislen < length($line)) {
+	## need to place a '>'... make sure to place on first byte.
+	$thislen-- if &OnSecondByte($si+$thislen-1);
+	substr($line, $si+$thislen-1,1) = '>';
+    }
+
+    ##
+    ## Now know what to display.
+    ## Must get substr($line, $si, $thislen) on the screen,
+    ## with the cursor at $D-$si characters from the left edge.
+    ##
+    $line = substr($line, $si, $thislen);
+    $delta = $D - $si;	## delta is cursor distance from left margin.
+
+    ##
+    ## Now must output $line, with cursor $delta spaces from left margin.
+    ##
+
+    ##
+    ## If $force_redraw is not set, we can attempt to optimize the redisplay
+    ## However, if we don't happen to find an easy way to optimize, we just
+    ## fall through to the brute-force method of re-drawing the whole line.
+    ##
+    if (!$force_redraw)
+    {
+	## can try to optimize here a bit.
+
+	## For when we only need to move the cursor
+	if ($lastredisplay eq $line) {
+	    ## If we need to move forward, just overwrite as far as we need.
+	    if ($lastdelta < $delta) {
+		print $term_OUT substr($line, $lastdelta, $delta-$lastdelta);
+
+	    ## Need to move back.
+	    } elsif($lastdelta > $delta) {
+		## Two ways to move back... use the fastest. One is to just
+		## backspace the proper amount. The other is to jump to the
+		## the beginning of the line and overwrite from there....
+		if ($lastdelta - $delta < $delta) {
+		    print $term_OUT "\b" x ($lastdelta - $delta);
+		} else {
+		    print $term_OUT "\r", substr($line, 0, $delta);
+		}
+	    }
+	    ($lastlen, $lastredisplay, $lastdelta) = ($thislen, $line, $delta);
+	    return;
+	}
+
+	## for when we've just added stuff to the end
+	if ($thislen > $lastlen &&
+	    $lastdelta == $lastlen &&
+	    $delta == $thislen &&
+	    substr($line, 0, $lastlen) eq $lastredisplay)
+	{
+	    print $term_OUT substr($line, $lastdelta);
+	    ($lastlen, $lastredisplay, $lastdelta) = ($thislen, $line, $delta);
+	    return;
+	}
+
+	## There is much more opportunity for optimizing.....
+	## something to work on later.....
+    }
+
+    ##
+    ## Brute force method of redisplaying... redraw the whole thing.
+    ##
+
+    print $term_OUT "\r",$line;
+    print $term_OUT ' ' x ($lastlen - $thislen) if $lastlen > $thislen;
+
+    print $term_OUT "\r",substr($line, 0, $delta)
+	if $delta != length ($line) || $lastlen > $thislen;
+
+    ($lastlen, $lastredisplay, $lastdelta) = ($thislen, $line, $delta);
+
+    $force_redraw = 0;
+}
+
+sub min     { $_[0] < $_[1] ? $_[0] : $_[1]; }
+
+sub rl_getc {
+	  if (defined $term_readkey) { # XXXX ???
+	    $Tk_count_rk++;
+	    &Tk_loop if $Tk_toloop;
+	    $key = Term::ReadKey::ReadKey(0, $term_IN);
+	  } else {
+	    &Tk_loop if $Tk_toloop;
+	    $key = getc $term_IN;
+	  }
+}
+
+##
+## do_command(keymap, numericarg, command)
+##
+## If the KEYMAP has an entry for COMMAND, it is executed.
+## Otherwise, the default command for the keymap is executed.
+##
+sub do_command
+{
+    local *KeyMap = shift;
+    my ($count, $key) = @_;
+    my $cmd = defined($KeyMap[$key]) ? $KeyMap[$key] : $KeyMap{'default'};
+    if (!defined($cmd) || $cmd eq ''){
+	warn "internal error (key=$key)";
+    } else {
+	## print "COMMAND [$cmd($count, $key)]\r\n"; ##DEBUG
+	&$cmd($count, $key);
+    }
+    $lastcommand = $cmd;
+}
+
+##
+## Save whatever state we wish to save as a string.
+## Only other function that needs to know about it's encoded is getstate.
+##
+sub savestate
+{
+    join("\0", $D, $si, $LastCommandKilledText, $KillBuffer, $line);
+}
+
+
+##
+## $_[1] is an ASCII ordinal; inserts as per $count.
+##
+sub F_SelfInsert
+{
+    my ($count, $ord) = @_;
+    my $text2add = pack('c', $ord) x $count;
+    if ($InsertMode) {
+	substr($line,$D,0) .= $text2add;
+    } else {
+	## note: this can screw up with 2-byte characters.
+	substr($line,$D,length($text2add)) = $text2add;
+    }
+    $D += length($text2add);
+}
+
+##
+## Return the line as-is to the user.
+##
+sub F_AcceptLine
+{
+    ##
+    ## Insert into history list if:
+    ##	 * bigger than the minimal length
+    ##   * not same as last entry
+    ##
+    if (length($line) >= $minlength 
+	&& (!@rl_History || $rl_History[$#rl_History] ne $line)
+       ) {
+	## if the history list is full, shift out an old one first....
+	while (@rl_History >= $rl_MaxHistorySize) {
+	    shift(@rl_History);
+	    $rl_HistoryIndex--;
+	}
+	push(@rl_History, $line); ## tack new one on the end
+    }
+    $AcceptLine = $line;
+    print $term_OUT "\r\n";
+}
+
+#sub F_ReReadInitFile;
+#sub rl_getc;
+sub F_ForwardChar;
+sub F_BackwardChar;
+sub F_BeginningOfLine;
+sub F_EndOfLine;
+sub F_ForwardWord;
+sub F_BackwardWord;
+sub F_RedrawCurrentLine;
+sub F_ClearScreen;
+# sub F_SelfInsert;
+sub F_QuotedInsert;
+sub F_TabInsert;
+#sub F_AcceptLine;
+sub F_OperateAndGetNext;
+sub F_BackwardDeleteChar;
+sub F_DeleteChar;
+sub F_UnixWordRubout;
+sub F_UnixLineDiscard;
+sub F_UpcaseWord;
+sub F_DownCaseWord;
+sub F_CapitalizeWord;
+sub F_TransposeWords;
+sub F_TransposeChars;
+sub F_PreviousHistory;
+sub F_NextHistory;
+sub F_BeginningOfHistory;
+sub F_EndOfHistory;
+sub F_ReverseSearchHistory;
+sub F_ForwardSearchHistory;
+sub F_HistorySearchBackward;
+sub F_HistorySearchForward;
+sub F_KillLine;
+sub F_BackwardKillLine;
+sub F_Yank;
+sub F_YankPop;
+sub F_YankNthArg;
+sub F_KillWord;
+sub F_BackwardKillWord;
+sub F_Abort;
+sub F_DoLowercaseVersion;
+sub F_Undo;
+sub F_RevertLine;
+sub F_EmacsEditingMode;
+sub F_ToggleEditingMode;
+sub F_Interrupt;
+sub F_PrefixMeta;
+sub F_UniversalArgument;
+sub F_DigitArgument;
+sub F_OverwriteMode;
+sub F_InsertMode;
+sub F_ToggleInsertMode;
+sub F_Suspend;
+sub F_Ding;
+sub F_PossibleCompletions;
+sub F_Complete;
+sub Tk_register_Tk;
+
+1;
+__DATA__
+
+# From here on anything may be autoloaded
+
+sub Tk_handle {$Tk_giveup = 1;$Tk_count_handle++}
+
+sub Tk_loop {
+  $Tk_count_DoOne++, Tk::DoOneEvent(0) until $Tk_giveup;
+  $Tk_count_loop++;
+  $Tk_giveup = 0;
+}
+
+sub Tk_register_Tk {
+  $Tk_registered++ || Tk->fileevent($term_IN,'readable',\&Tk_handle);
+  # $Tk_toloop = 1;
+}
+
+
+sub max     { $_[0] > $_[1] ? $_[0] : $_[1]; }
+sub isupper { ord($_[0]) >= ord('A') && ord($_[0]) <= ord('Z'); }
+sub islower { ord($_[0]) >= ord('a') && ord($_[0]) <= ord('z'); }
+sub toupper { &islower ? pack('c', ord($_[0])-ord('a')+ord('A')) : $_[0];}
+sub tolower { &isupper ? pack('c', ord($_[0])-ord('A')+ord('a')) : $_[0];}
 
 ##
 ## rl_set(var_name, value_string)
@@ -1182,50 +1506,6 @@ sub ___ResetTTY
 # system 'stty -a';
 }
 
-sub SetTTY {
-    return if $dumb_term || $stdin_not_tty;
-    #return system 'stty raw -echo' if defined &DB::DB;
-    if (defined $term_readkey) {
-      return Term::ReadKey::ReadMode(4, $term_IN);
-    }
-#   system 'stty raw -echo';
-
-    $sgttyb = ''; ## just to quiet "perl -w";
-    ioctl($term_IN,$TIOCGETP,$sgttyb) || die "Can't ioctl TIOCGETP: $!";
-    @tty_buf = unpack($sgttyb_t,$sgttyb);
-    if (defined $ENV{OS2_SHELL}) {
-      $tty_buf[3] &= ~$mode;
-      $tty_buf[3] &= ~$ECHO;
-    } else {
-      $tty_buf[4] |= $mode;
-      $tty_buf[4] &= ~$ECHO;
-    }
-    $sgttyb = pack($sgttyb_t,@tty_buf);
-    ioctl($term_IN,$TIOCSETP,$sgttyb) || die "Can't ioctl TIOCSETP: $!";
-}
-
-sub ResetTTY {
-    return if $dumb_term || $stdin_not_tty;
-    #return system 'stty -raw echo' if defined &DB::DB;
-    if (defined $term_readkey) {
-      return Term::ReadKey::ReadMode(0, $term_IN);
-    }
-
-#   system 'stty -raw echo';
-
-    ioctl($term_IN,$TIOCGETP,$sgttyb) || die "Can't ioctl TIOCGETP: $!";
-    @tty_buf = unpack($sgttyb_t,$sgttyb);
-    if (defined $ENV{OS2_SHELL}) {
-      $tty_buf[3] |= $mode;
-      $tty_buf[3] |= $ECHO;
-    } else {
-      $tty_buf[4] &= ~$mode;
-      $tty_buf[4] |= $ECHO;
-    }
-    $sgttyb = pack($sgttyb_t,@tty_buf);
-    ioctl($term_IN,$TIOCSETP,$sgttyb) || die "Can't ioctl TIOCSETP: $!";
-}
-
 ##
 ## WordBreak(index)
 ##
@@ -1237,33 +1517,6 @@ sub WordBreak
     index($rl_basic_word_break_characters, substr($line,$_[0],1)) != -1;
 }
 
-##
-## do_command(keymap, numericarg, command)
-##
-## If the KEYMAP has an entry for COMMAND, it is executed.
-## Otherwise, the default command for the keymap is executed.
-##
-sub do_command
-{
-    local(*KeyMap, $count, $key) = @_;
-    local($cmd) = defined($KeyMap[$key]) ? $KeyMap[$key] : $KeyMap{'default'};
-    if (!defined($cmd) || $cmd eq ''){
-	warn "internal error (key=$key)";
-    } else {
-	## print "COMMAND [$cmd($count, $key)]\r\n"; ##DEBUG
-	&$cmd($count, $key);
-    }
-    $lastcommand = $cmd;
-}
-
-##
-## Save whatever state we wish to save as a string.
-## Only other function that needs to know about it's encoded is getstate.
-##
-sub savestate
-{
-    join("\0", $D, $si, $LastCommandKilledText, $KillBuffer, $line);
-}
 sub getstate
 {
     ($D, $si, $LastCommandKilledText, $KillBuffer, $line) = split(/\0/, $_[0]);
@@ -1275,8 +1528,8 @@ sub getstate
 ##
 sub kill_text
 {
-    local($from, $to, $save) = (&min($_[0], $_[1]), &max($_[0], $_[1]), $_[2]);
-    local($len) = $to - $from;
+    my($from, $to, $save) = (&min($_[0], $_[1]), &max($_[0], $_[1]), $_[2]);
+    my $len = $to - $from;
     if ($save) {
 	$ThisCommandKilledText = 1;
 	$KillBuffer = '' if !$LastCommandKilledText;
@@ -1291,171 +1544,6 @@ sub kill_text
     }
 }
 
-
-##
-## redisplay()
-##
-## Updates the screen to reflect the current $line.
-##
-## For the purposes of this routine, we prepend the prompt to a local copy of
-## $line so that we display the prompt as well.  We then modify it to reflect
-## that some characters have different sizes (i.e. control-C is represented
-## as ^C, tabs are expanded, etc.)
-##
-## This routine is somewhat complicated by two-byte characters.... must
-## make sure never to try do display just half of one.
-##
-## NOTE: If an argument is given, it is used instead of the prompt.
-##
-## This is some nasty code.
-##
-sub redisplay
-{
-    ## local $line has prompt also; take that into account with $D.
-    local($prompt) = defined($_[0]) ? $_[0] : $prompt;
-    local($line) = $prompt . $line;
-    local($D) = $D + length($prompt);
-
-    ##
-    ## If the line contains anything that might require special processing
-    ## for displaying (such as tabs, control characters, etc.), we will
-    ## take care of that now....
-    ##
-    if ($line =~ m/[^\x20-\x7e]/)
-    {
-	local($new, $Dinc, $c) = ('', 0);
-
-	## Look at each character of $line in turn.....
-        for ($i = 0; $i < length($line); $i++) {
-	    $c = substr($line, $i, 1);
-
-	    ## A tab to expand...
-	    if ($c eq "\t") {
-		$c = ' ' x  (8 - (($i-length($prompt)) % 8));
-
-	    ## A control character....
-	    } elsif ($c =~ tr/\000-\037//) {
-		$c = sprintf("^%c", ord($c)+ord('@'));
-
-	    ## the delete character....
-	    } elsif (ord($c) == 127) {
-		$c = '^?';
-	    }
-	    $new .= $c;
-
-	    ## Bump over $D if this char is expanded and left of $D.
-	    $Dinc += length($c) - 1 if (length($c) > 1 && $i < $D);
-	}
-	$line = $new;
-	$D += $Dinc;
-    }
-
-    ##
-    ## Now $line is what we'd like to display.
-    ##
-    ## If it's too long to fit on the line, we must decide what we can fit.
-    ##
-    ## If we end up moving the screen index ($si) [index of the leftmost
-    ## character on the screen], to some place other than the front of the
-    ## the line, we'll have to make sure that it's not on the first byte of
-    ## a 2-byte character, 'cause we'll be placing a '<' marker there, and
-    ## that would screw up the 2-byte character.
-    ##
-    ## Similarly, if the line needs chopped off, we make sure that the
-    ## placement of the tailing '>' won't screw up any 2-byte character in
-    ## the vicinity.
-    ##
-    if ($D == length($prompt)) {
-	$si = 0;   ## display from the beginning....
-    } elsif ($si >= $D) {
-	$si = &max(0, $D - $rl_margin);
-	$si-- if $si != length($prompt) && !&OnSecondByte($si);
-    } elsif ($si + $rl_screen_width <= $D) {
-	$si = &min(length($line), ($D - $rl_screen_width) + $rl_margin);
-	$si-- if $si != length($prompt) && !&OnSecondByte($si);
-    } else {
-	## Fine as-is.... don't need to change $si.
-    }
-    substr($line, $si, 1) = '<' if $si != 0; ## put the "chopped-off" marker
-
-    $thislen = &min(length($line) - $si, $rl_screen_width);
-    if ($si + $thislen < length($line)) {
-	## need to place a '>'... make sure to place on first byte.
-	$thislen-- if &OnSecondByte($si+$thislen-1);
-	substr($line, $si+$thislen-1,1) = '>';
-    }
-
-    ##
-    ## Now know what to display.
-    ## Must get substr($line, $si, $thislen) on the screen,
-    ## with the cursor at $D-$si characters from the left edge.
-    ##
-    $line = substr($line, $si, $thislen);
-    $delta = $D - $si;	## delta is cursor distance from left margin.
-
-    ##
-    ## Now must output $line, with cursor $delta spaces from left margin.
-    ##
-
-    ##
-    ## If $force_redraw is not set, we can attempt to optimize the redisplay
-    ## However, if we don't happen to find an easy way to optimize, we just
-    ## fall through to the brute-force method of re-drawing the whole line.
-    ##
-    if (!$force_redraw)
-    {
-	## can try to optimize here a bit.
-
-	## For when we only need to move the cursor
-	if ($lastredisplay eq $line) {
-	    ## If we need to move forward, just overwrite as far as we need.
-	    if ($lastdelta < $delta) {
-		print $term_OUT substr($line, $lastdelta, $delta-$lastdelta);
-
-	    ## Need to move back.
-	    } elsif($lastdelta > $delta) {
-		## Two ways to move back... use the fastest. One is to just
-		## backspace the proper amount. The other is to jump to the
-		## the beginning of the line and overwrite from there....
-		if ($lastdelta - $delta < $delta) {
-		    print $term_OUT "\b" x ($lastdelta - $delta);
-		} else {
-		    print $term_OUT "\r", substr($line, 0, $delta);
-		}
-	    }
-	    ($lastlen, $lastredisplay, $lastdelta) = ($thislen, $line, $delta);
-	    return;
-	}
-
-	## for when we've just added stuff to the end
-	if ($thislen > $lastlen &&
-	    $lastdelta == $lastlen &&
-	    $delta == $thislen &&
-	    substr($line, 0, $lastlen) eq $lastredisplay)
-	{
-	    print $term_OUT substr($line, $lastdelta);
-	    ($lastlen, $lastredisplay, $lastdelta) = ($thislen, $line, $delta);
-	    return;
-	}
-
-	## There is much more opportunity for optimizing.....
-	## something to work on later.....
-    }
-
-    ##
-    ## Brute force method of redisplaying... redraw the whole thing.
-    ##
-
-    print $term_OUT "\r",$line;
-    print $term_OUT ' ' x ($lastlen - $thislen) if $lastlen > $thislen;
-
-    print $term_OUT "\r",substr($line, 0, $delta)
-	if $delta != length ($line) || $lastlen > $thislen;
-
-    ($lastlen, $lastredisplay, $lastdelta) = ($thislen, $line, $delta);
-
-    $force_redraw = 0;
-}
 
 ###########################################################################
 ## Bindable functions... pretty much in the same order as in readline.c ###
@@ -1475,7 +1563,7 @@ sub at_end_of_line
 ##
 sub F_ForwardChar
 {
-    local($count) = @_;
+    my $count = shift;
     return &F_BackwardChar(-$count) if $count < 0;
 
     while (!&at_end_of_line && $count-- > 0) {
@@ -1488,7 +1576,7 @@ sub F_ForwardChar
 ##
 sub F_BackwardChar
 {
-    local($count) = @_;
+    my $count = shift;
     return &F_ForwardChar(-$count) if $count < 0;
 
     while (($D > 0) && ($count-- > 0)) {
@@ -1519,7 +1607,7 @@ sub F_EndOfLine
 ##
 sub F_ForwardWord
 {
-    local($count) = @_;
+    my $count = shift;
     return &F_BackwardWord(-$count) if $count < 0;
 
     while (!&at_end_of_line && $count-- > 0)
@@ -1538,7 +1626,7 @@ sub F_ForwardWord
 ##
 sub F_BackwardWord
 {
-    local($count) = @_;
+    my $count = shift;
     return &F_ForwardWord(-$count) if $count < 0;
 
     while ($D > 0 && $count-- > 0) {
@@ -1563,7 +1651,7 @@ sub F_RedrawCurrentLine
 ##
 sub F_ClearScreen
 {
-    local($count) = @_;
+    my $count = @_;
     return &F_RedrawCurrentLine if $count != 1;
 
     $rl_CLEAR = `clear` if !defined($rl_CLEAR);
@@ -1572,27 +1660,11 @@ sub F_ClearScreen
 }
 
 ##
-## $_[1] is an ASCII ordinal; inserts as per $count.
-##
-sub F_SelfInsert
-{
-    local($count, $ord) = @_;
-    local($text2add) = pack('c', $ord) x $count;
-    if ($InsertMode) {
-	substr($line,$D,0) .= $text2add;
-    } else {
-	## note: this can screw up with 2-byte characters.
-	substr($line,$D,length($text2add)) = $text2add;
-    }
-    $D += length($text2add);
-}
-
-##
 ## Insert the next character read verbatim.
 ##
 sub F_QuotedInsert
 {
-    local($count) = @_;
+    my $count = shift;
     &F_SelfInsert($count, ord(rl_getc));
 }
 
@@ -1601,32 +1673,8 @@ sub F_QuotedInsert
 ##
 sub F_TabInsert
 {
-    local($count) = @_;
+    my $count = shift;
     &F_SelfInsert($count, ord("\t"));
-}
-
-##
-## Return the line as-is to the user.
-##
-sub F_AcceptLine
-{
-    ##
-    ## Insert into history list if:
-    ##	 * bigger than the minimal length
-    ##   * not same as last entry
-    ##
-    if (length($line) >= $minlength 
-	&& (!@rl_History || $rl_History[$#rl_History] ne $line)
-       ) {
-	## if the history list is full, shift out an old one first....
-	while (@rl_History >= $rl_MaxHistorySize) {
-	    shift(@rl_History);
-	    $rl_HistoryIndex--;
-	}
-	push(@rl_History, $line); ## tack new one on the end
-    }
-    $AcceptLine = $line;
-    print $term_OUT "\r\n";
 }
 
 sub F_OperateAndGetNext
@@ -1647,9 +1695,9 @@ sub F_OperateAndGetNext
 ##
 sub F_BackwardDeleteChar
 {
-    local($count) = @_;
+    my $count = shift;
     return F_DeleteChar(-$count) if $count < 0;
-    local($oldD) = $D;
+    my $oldD = $D;
     &F_BackwardChar($count);
     return if $D == $oldD;
     &kill_text($oldD, $D, $count > 1);
@@ -1665,7 +1713,7 @@ sub F_BackwardDeleteChar
 ##
 sub F_DeleteChar
 {
-    local($count) = @_;
+    my $count = shift;
     return F_DeleteBackwardChar(-$count) if $count < 0;
     if (length($line) == 0) {	# EOF sent (probably OK in DOS too)
 	$AcceptLine = $ReturnEOF = 1 if $lastcommand ne 'F_DeleteChar';
@@ -1676,7 +1724,7 @@ sub F_DeleteChar
 	&complete_internal('?') if $var_TcshCompleteMode;
 	return;
     }
-    local($oldD) = $D;
+    my $oldD = $D;
     &F_ForwardChar($count);
     return if $D == $oldD;
     &kill_text($oldD, $D, $count > 1);
@@ -1688,9 +1736,9 @@ sub F_DeleteChar
 sub F_UnixWordRubout
 {
     return &F_Ding if $D == 0;
-    local($oldD, $rl_basic_word_break_characters) = ($D, "\t ");
-    &F_BackwardWord(1);
-    &kill_text($D, $oldD, 1);
+    my ($oldD, $rl_basic_word_break_characters) = ($D, "\t ");
+    F_BackwardWord(1);
+    kill_text($D, $oldD, 1);
 }
 
 ##
@@ -1699,7 +1747,7 @@ sub F_UnixWordRubout
 sub F_UnixLineDiscard
 {
     return &F_Ding if $D == 0;
-    &kill_text(0, $D, 1);
+    kill_text(0, $D, 1);
 }
 
 sub F_UpcaseWord     { &changecase($_[0], 'up');   }
@@ -1715,9 +1763,9 @@ sub F_CapitalizeWord { &changecase($_[0], 'cap');  }
 ##
 sub changecase
 {
-    local($op) = $_[1];
+    my $op = $_[1];
 
-    local($start, $state, $c, $olddot) = ($D, 0);
+    my ($start, $state, $c, $olddot) = ($D, 0);
     if ($_[0] < 0)
     {
 	$olddot = $D;
@@ -1835,7 +1883,7 @@ sub F_HistorySearchForward
 
 ## returns a new $i or -1 if not found.
 sub search { 
-  local($i, $str) = @_;
+  my ($i, $str) = @_;
   return -1 if $i < 0 || $i > $#rl_History; 	 ## for safety
   while (1) {
     return $i if rindex($rl_History[$i], $str) >= 0;
@@ -1849,12 +1897,12 @@ sub search {
 
 sub DoSearch
 {
-    local($reverse) = @_;
-    local($oldline) = $line;
-    local($oldD) = $D;
+    my $reverse = shift;
+    my $oldline = $line;
+    my $oldD = $D;
 
-    local($searchstr) = '';  ## string we're searching for
-    local($I) = -1;  	     ## which history line
+    my $searchstr = '';  ## string we're searching for
+    my $I = -1;  	     ## which history line
 
     $si = 0;
 
@@ -1918,7 +1966,7 @@ sub DoSearch
 
 ## returns a new $i or -1 if not found.
 sub searchStart { 
-  local($i, $reverse, $str) = @_;
+  my ($i, $reverse, $str) = @_;
   $i += $reverse ? - 1: +1;
   return -1 if $i < 0 || $i > $#rl_History;  ## for safety
   while (1) {
@@ -1933,13 +1981,13 @@ sub searchStart {
 
 sub DoSearchStart
 {
-    local($reverse,$what) = @_;
-    local($i) = searchStart($rl_HistoryIndex, $reverse, $what);
+    my ($reverse,$what) = @_;
+    my $i = searchStart($rl_HistoryIndex, $reverse, $what);
     return if $i == -1;
     $rl_HistoryIndex = $i;
     ($D, $line) = (0, $rl_History[$rl_HistoryIndex]);
-    &F_BeginningOfLine();
-    &F_ForwardChar(length($what));
+    F_BeginningOfLine();
+    F_ForwardChar(length($what));
 
 }
 
@@ -1951,9 +1999,9 @@ sub DoSearchStart
 ##
 sub F_KillLine
 {
-    local($count) = @_;
-    return &F_BackwardKillLine(-$count) if $count < 0;
-    &kill_text($D, length($line), 1);
+    my $count = shift;
+    return F_BackwardKillLine(-$count) if $count < 0;
+    kill_text($D, length($line), 1);
 }
 
 ##
@@ -1961,18 +2009,18 @@ sub F_KillLine
 ##
 sub F_BackwardKillLine
 {
-    local($count) = @_;
-    return &F_KillLine(-$count) if $count < 0;
-    return &F_Ding if $D == 0;
-    &kill_text(0, $D, 1);
+    my $count = shift;
+    return F_KillLine(-$count) if $count < 0;
+    return F_Ding if $D == 0;
+    kill_text(0, $D, 1);
 }
 
 ##
 ## TextInsert(count, string)
 ##
 sub TextInsert {
-  local($count) = @_;
-  local($text2add) = $_[1] x $count;
+  my $count = shift;
+  my $text2add = shift(@_) x $count;
   if ($InsertMode) {
     substr($line,$D,0) .= $text2add;
   } else {
@@ -1995,11 +2043,11 @@ sub F_YankNthArg { } ## not implemented yet
 ##
 sub F_KillWord
 {
-    local($count) = @_;
+    my $count = shift;
     return &F_BackwardKillWord(-$count) if $count < 0;
-    local($oldD) = $D;
-    &F_ForwardWord;	## moves forward $count words.
-    &kill_text($oldD, $D, 1);
+    my $oldD = $D;
+    &F_ForwardWord($count);	## moves forward $count words.
+    kill_text($oldD, $D, 1);
 }
 
 ##
@@ -2009,11 +2057,11 @@ sub F_KillWord
 ##
 sub F_BackwardKillWord
 {
-    local($count) = @_;
-    return &F_KillWord(-$count) if $count < 0;
-    local($oldD) = $D;
-    &F_BackwardWord;	## moves backward $count words.
-    &kill_text($D, $oldD, 1);
+    my $count = shift;
+    return F_KillWord(-$count) if $count < 0;
+    my $oldD = $D;
+    &F_BackwardWord($count);	## moves backward $count words.
+    kill_text($D, $oldD, 1);
 }
 
 ###########################################################################
@@ -2104,10 +2152,10 @@ sub F_Interrupt
 ##
 sub F_PrefixMeta
 {
-    local($count, $keymap) = ($_[0], "$KeyMap{'name'}_$_[1]");
+    my($count, $keymap) = ($_[0], "$KeyMap{'name'}_$_[1]");
     ##print "F_PrefixMeta [$keymap]\n\r";
-    die "<internal error, $_[1]>" if eval("!defined(%$keymap)");
-    eval qq/ &do_command(*$keymap, $count, ord(rl_getc)) /;
+    die "<internal error, $_[1]>" unless defined(%$keymap);
+    do_command(*$keymap, $count, ord(rl_getc));
 }
 
 sub F_UniversalArgument
@@ -2120,9 +2168,9 @@ sub F_UniversalArgument
 ##
 sub F_DigitArgument
 {
-    local($ord) = $_[1];
-    local($NumericArg, $sign, $explicit) = (1, 1, 0);
-    local($increment);
+    my $ord = $_[1];
+    my ($NumericArg, $sign, $explicit) = (1, 1, 0);
+    my $increment;
 
     do
     {
@@ -2180,7 +2228,7 @@ sub F_Suspend
     }
     print $term_OUT "\r\n";
     &ResetTTY;
-    eval qq{ kill ("TSTP", 0) };
+    eval { kill ("TSTP", 0) };
     ## We're back....
     &SetTTY;
     $force_redraw = 1;
@@ -2304,8 +2352,8 @@ sub F_Complete
 ##
 sub complete_internal
 {
-    local($what_to_do) = @_;
-    local($point, $end) = ($D, $D);
+    my $what_to_do = @_;
+    my ($point, $end) = ($D, $D);
 
     if ($point)
     {
@@ -2322,13 +2370,13 @@ sub complete_internal
 	);
     }
 
-    local($text) = substr($line, $point, $end - $point);
+    my $text = substr($line, $point, $end - $point);
     @matches = &completion_matches($rl_completion_function,$text,$line,$point);
 
     if (@matches == 0) {
 	&F_Ding;
     } elsif ($what_to_do eq "\t") {
-	local($replacement) = shift(@matches);
+	my $replacement = shift(@matches);
 	$replacement .= ' ' if @matches == 1;
 	if (!$var_TcshCompleteMode) {
 	    &F_Ding if @matches != 1;
@@ -2373,17 +2421,17 @@ sub complete_internal
 ## Works with &rl_basic_commands. Return items from @rl_basic_commands
 ## that start with the pattern in $text.
 sub use_basic_commands {
-  local($text, $line, $start) = @_;
+  my ($text, $line, $start) = @_;
   return () if $start != 0;
   grep(/^$text/, @rl_basic_commands);
 }
 
 sub completion_matches
 {
-    local($func, $text, $line, $start) = @_;
+    my ($func, $text, $line, $start) = @_;
 
     ## get the raw list
-    local(@matches);
+    my @matches;
 
     #print qq/\r\neval("\@matches = &$func(\$text, \$line, \$start)\n\r/;#DEBUG
     #eval("\@matches = &$func(\$text, \$line, \$start);1") || warn "$@ ";
@@ -2391,8 +2439,8 @@ sub completion_matches
 
     ## if anything returned , find the common prefix among them
     if (@matches) {
-	local($prefix) = $matches[0];
-	local($len) = length($prefix);
+	my $prefix = $matches[0];
+	my $len = length($prefix);
 	for ($i = 1; $i < @matches; $i++) {
 	    next if substr($matches[$i], 0, $len) eq $prefix;
 	    $prefix = substr($prefix, 0, --$len);
@@ -2413,8 +2461,8 @@ sub completion_matches
 ##
 sub rl_filename_list
 {
-    local($pattern) = $_[0];
-    local(@files) = (<$pattern*>);
+    my $pattern = $_[0];
+    my @files = (<$pattern*>);
     if ($var_CompleteAddsuffix) {
 	foreach (@files) {
 	    if (-l $_) {
@@ -2454,12 +2502,12 @@ sub rl_basic_commands
 ##
 sub pretty_print_list
 {
-    local (@list) = @_;
+    my @list = @_;
     return unless @list;
-    local ($lines, $columns, $mark, $index);
+    my ($lines, $columns, $mark, $index);
 
     ## find width of widest entry
-    local($maxwidth) = 0;
+    my $maxwidth = 0;
     grep(length > $maxwidth && ($maxwidth = length), @list);
     $maxwidth++;
 

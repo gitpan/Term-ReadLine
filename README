@@ -93,3 +93,5 @@ added.
      Should work better if ReadKey is present, but did not bootstrap.
      SelfLoader (and AutoLoader) supported (uncomment the lines
 	with SelfLoader, ISA, and __DATA__).
+0.9: tkRunning corrected. New attributes in Features: getHistory,
+	setHistory, and new methods: GetHistory and SetHistory.

@@ -6,7 +6,7 @@ use Carp;
 sub readline {
   shift; 
   #my $in = 
-  &readline::readline(shift);
+  &readline::readline(@_);
   #$loaded = defined &Term::ReadKey::ReadKey;
   #print STDOUT "\nrl=`$in', loaded = `$loaded'\n";
   #if (ref \$in eq 'GLOB') {	# Bug under debugger
@@ -16,7 +16,8 @@ sub readline {
   #$in;
 }
 
-sub addhistory {}
+#sub addhistory {}
+*addhistory = \&AddHistory;
 
 #$term;
 $readline::minlength = 1;	# To peacify -w
@@ -55,5 +56,19 @@ sub new {
 }
 sub ReadLine {'Term::ReadLine::readline_pl'}
 sub MinLine { shift; $readline::minlength = shift }
-%features =  (appname => 1, minline => 1, autohistory => 1);
+sub SetHistory {
+  shift;
+  @readline::rl_History = @_;
+  $readline::rl_HistoryIndex = @readline::rl_History;
+}
+sub GetHistory {
+  @readline::rl_History;
+}
+sub AddHistory {
+  shift;
+  push @readline::rl_History, @_;
+  $readline::rl_HistoryIndex = @readline::rl_History + @_;
+}
+%features =  (appname => 1, minline => 1, autohistory => 1, getHistory => 1,
+	      setHistory => 1, addHistory => 1, preput => 1, tkRunning => 1);
 sub Features { \%features; }
