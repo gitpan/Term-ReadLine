@@ -1,6 +1,6 @@
 package Term::ReadLine::Perl;
 use Carp;
-@ISA = qw(Term::ReadLine::Stub Term::ReadLine::Perl::AU);
+@ISA = qw(Term::ReadLine::Stub Term::ReadLine::Compa Term::ReadLine::Perl::AU);
 #require 'readline.pl';
 
 $VERSION = $VERSION = 0.96;
@@ -110,6 +110,19 @@ sub STORE {
 sub FETCH {
   my ($self, $name) = (shift, shift);
   $ {'readline::rl_' . $name};
+}
+
+package Term::ReadLine::Compa;
+
+sub get_c {
+  my $self = shift;
+  getc($self->[0]);
+}
+
+sub get_line {
+  my $self = shift;
+  my $fh = $self->[0];
+  scalar <$fh>;
 }
 
 1;

@@ -59,3 +59,6 @@ After 0.91:
 0.96:
 	tkRunning support unrolled, now needs newer Term/ReadLine.pm to use it.
 	Warnings from inputrc come only if -w.
+
+0.97:
+	Wrong version of Perl.pm was included, did not work with older Perls.
