@@ -7,3 +7,7 @@ After 0.9:
 	tkRunning feature documented.
 	eval "" => eval {}
 	local => my
+After 0.91:
+	Couple of bugs with my $var = @_;
+	use SelfLoader; moved to DATA.
+	Works in XTERM on OS/2.

@@ -22,6 +22,7 @@ sub readline {
 #$term;
 $readline::minlength = 1;	# To peacify -w
 $readline::rl_readline_name = undef; # To peacify -w
+$readline::rl_basic_word_break_characters = undef; # To peacify -w
 
 sub new {
   warn "Cannot create second readline interface.\n" if defined $term;

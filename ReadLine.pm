@@ -136,14 +136,14 @@ sub findConsole {
     }
 
     if (defined $ENV{'OS2_SHELL'}) { # In OS/2
-      if ($DB::emacs) {
+      if ($DB::emacs or exists $ENV{WINDOWID}) { # In emacs, or in XTERM
 	$console = undef;
       } else {
 	$console = "/dev/con";
       }
     }
 
-    $consoleOUT = $console;
+    my $consoleOUT = $console;
     $console = "&STDIN" unless defined $console;
     if (!defined $consoleOUT) {
       $consoleOUT = defined fileno(STDERR) ? "&STDERR" : "&STDOUT";
@@ -157,19 +157,20 @@ sub new {
   #local (*FIN, *FOUT);
   my ($FIN, $FOUT);
   if (@_==2) {
-    ($console, $consoleOUT) = findConsole;
+    my ($console, $consoleOUT) = findConsole;
 
     open(FIN, "<$console"); 
     open(FOUT,">$consoleOUT");
     #OUT->autoflush(1);		# Conflicts with debugger?
-    $sel = select(FOUT);
+    my $sel = select(FOUT);
     $| = 1;				# for DB::OUT
     select($sel);
     bless [\*FIN, \*FOUT];
   } else {			# Filehandles supplied
-    $FIN = $_[2]; $FOUT = $_[3];
+    my $FIN = $_[2]; 
+    my $FOUT = $_[3];
     #OUT->autoflush(1);		# Conflicts with debugger?
-    $sel = select($FOUT);
+    my $sel = select($FOUT);
     $| = 1;				# for DB::OUT
     select($sel);
     bless [$FIN, $FOUT];
@@ -182,7 +183,7 @@ sub Features { {} }
 
 package Term::ReadLine;		# So late to allow the above code be defined?
 
-$VERSION = $VERSION = 0.91;
+$VERSION = $VERSION = 0.92;
 
 eval "use Term::ReadLine::Gnu;" or eval "use Term::ReadLine::Perl;";
 

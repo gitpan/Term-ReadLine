@@ -23,12 +23,6 @@
 
 package readline;
 
-# Comment these 2 lines and __DATA__ line somewhere below to disable
-# selfloader.
-
-use SelfLoader;
-@ISA = (SelfLoader);
-
 my $autoload_broken = 1;	# currently: defined does not work with a-l
 
 ##
@@ -44,7 +38,7 @@ my $autoload_broken = 1;	# currently: defined does not work with a-l
 ## while writing this), and for Roland Schemers whose line_edit.pl I used
 ## as an early basis for this.
 ##
-$VERSION = $VERSION = 0.91;
+$VERSION = $VERSION = 0.92;
 
 ## 940817.008 - Added $var_CompleteAddsuffix.
 ##		Now recognizes window-change signals (at least on BSD).
@@ -1311,6 +1305,11 @@ sub F_PossibleCompletions;
 sub F_Complete;
 sub Tk_register_Tk;
 
+# Comment these 2 lines and __DATA__ line somewhere below to disable
+# selfloader.
+
+use SelfLoader;
+
 1;
 __DATA__
 
@@ -1651,7 +1650,7 @@ sub F_RedrawCurrentLine
 ##
 sub F_ClearScreen
 {
-    my $count = @_;
+    my $count = shift;
     return &F_RedrawCurrentLine if $count != 1;
 
     $rl_CLEAR = `clear` if !defined($rl_CLEAR);
@@ -2352,7 +2351,7 @@ sub F_Complete
 ##
 sub complete_internal
 {
-    my $what_to_do = @_;
+    my $what_to_do = shift;
     my ($point, $end) = ($D, $D);
 
     if ($point)
