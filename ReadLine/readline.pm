@@ -24,6 +24,7 @@
 package readline;
 
 my $autoload_broken = 1;	# currently: defined does not work with a-l
+my $useioctl = 1;
 
 ##
 ## BLURB:
@@ -38,7 +39,7 @@ my $autoload_broken = 1;	# currently: defined does not work with a-l
 ## while writing this), and for Roland Schemers whose line_edit.pl I used
 ## as an early basis for this.
 ##
-$VERSION = $VERSION = 0.92;
+$VERSION = $VERSION = 0.94;
 
 ## 940817.008 - Added $var_CompleteAddsuffix.
 ##		Now recognizes window-change signals (at least on BSD).
@@ -80,6 +81,10 @@ $VERSION = $VERSION = 0.92;
 ##
 ## Added F_ToggleInsertMode, F_HistorySearchBackward,
 ## F_HistorySearchForward, PC keyboard bindings.
+## 0.93: Updates to Operate, couple of keybindings added.
+## $rl_completer_terminator_character, $rl_correct_sw added.
+## Reload-init-file moved to C-x C-x.
+## C-x ? and C-x * list/insert possible completions.
 
 &preinit;
 &init;
@@ -104,7 +109,7 @@ $Tk_toloop = 0;
 # # # # 	    $rl_completion_function $rl_basic_word_break_characters
 # # # # 	    $rl_completer_word_break_characters $rl_special_prefixes
 # # # # 	    $rl_readline_name @rl_History $rl_MaxHistorySize
-# # # # 	    $rl_max_numeric_arg $rl_Operate $rl_DefaultLine 
+# # # #             $rl_max_numeric_arg $rl_OperateCount
 # # # # 	    $KillBuffer $dumb_term $stdin_not_tty $InsertMode 
 # # # # 	    $rl_NoInitFromFile);
 
@@ -203,7 +208,7 @@ $Tk_toloop = 0;
 ## Other $var_ things not supported yet.
 ##
 ## Some variables used internally, but may be accessed from outside...
-##   $version -- just for good looks.
+##   $VERSION -- just for good looks.
 ##   $rl_readline_name = name of program -- for .initrc if/endif stuff.
 ##   $rl_NoInitFromFile -- if defined when package is require'd, ~/.inputrc
 ##  	will not be read.
@@ -219,6 +224,9 @@ $Tk_toloop = 0;
 ##   $rl_completer_word_break_characters --
 ##	like $rl_basic_word_break_characters (and in fact defaults to it),
 ##	but for the completion function.
+##   $rl_completer_terminator_character -- what to insert to separate
+##      a completed token from the rest.  Reset at beginning of
+##      completion to ' ' so completion function can change it.
 ##   $rl_special_prefixes -- characters that are part of this string as well
 ##      as of $rl_completer_word_break_characters cause a word break for the
 ##	completer function, but remain part of the word.  An example: consider
@@ -229,6 +237,7 @@ $Tk_toloop = 0;
 ## 	$rl_completer_word_break_characters as well....
 ##   $rl_MaxHistorySize -- maximum size that the history array may grow.
 ##   $rl_screen_width -- width readline thinks it can use on the screen.
+##   $rl_correct_sw -- is substructed from the real width of the terminal
 ##   $rl_margin -- when moving to within this far from a margin, scrolls.
 ##   $rl_CLEAR -- what to output to clear the screen.
 ##   $rl_max_numeric_arg -- maximum numeric arg allowed.
@@ -241,10 +250,12 @@ sub get_window_size
     
     if (defined $term_readkey) {
 	 ($num_cols,$num_rows) =  Term::ReadKey::GetTerminalSize($term_OUT);
-	 $rl_screen_width = $num_cols if defined($num_cols) && $num_cols;
+	 $rl_screen_width = $num_cols - $rl_correct_sw
+	   if defined($num_cols) && $num_cols;
     } elsif (ioctl($term_IN,$TIOCGWINSZ,$winsz)) {
 	 ($num_rows,$num_cols) = unpack($winsz_t,$winsz);
-	 $rl_screen_width = $num_cols if defined($num_cols) && $num_cols;
+	 $rl_screen_width = $num_cols - $rl_correct_sw
+	   if defined($num_cols) && $num_cols;
     }
     $rl_margin = int($rl_screen_width/3);
     if (defined $sig) {
@@ -310,7 +321,7 @@ sub preinit
     # WINCH hooks
     @winchhooks = ();
 
-    $inDOS = defined $ENV{OS2_SHELL} unless defined $inDOS;
+    $inDOS = $^O eq 'os2' || defined $ENV{OS2_SHELL} unless defined $inDOS;
     eval {
       require Term::ReadKey; $term_readkey++;
     };
@@ -392,6 +403,7 @@ sub preinit
       $TERMIOS_VMIN = 5 + 4;
       $TERMIOS_VTIME = 5 + 5;
     }
+    $rl_correct_sw = ($inDOS ? 1 : 0);
 
     $rl_start_default_at_beginning = 0;
     $rl_screen_width = 79; ## default
@@ -406,8 +418,7 @@ sub preinit
     @rl_History=() if !defined(@rl_History);
     $rl_MaxHistorySize = 100 if !defined($rl_MaxHistorySize);
     $rl_max_numeric_arg = 200 if !defined($rl_max_numeric_arg);
-    $rl_Operate = 0 if !defined($rl_Operate);
-    $rl_DefaultLine = '' if !defined($rl_DefaultLine);
+    $rl_OperateCount = 0 if !defined($rl_OperateCount);
 
     $InsertMode=1;
     $KillBuffer='';
@@ -415,6 +426,7 @@ sub preinit
     $InputLocMsg = ' [initialization]';
     
     &InitKeymap(*emacs_keymap, 'SelfInsert', 'emacs_keymap',
+		($inDOS ? () : ('C-@',	'Ding') ),
 		'C-a',	'BeginningOfLine',
 		'C-b',	'BackwardChar',
 		'C-c',	'Interrupt',
@@ -440,7 +452,9 @@ sub preinit
 		##'C-v',	'QuotedInsert',
 		'C-v',	'HistorySearchForward',
 		'C-w',	'UnixWordRubout',
-		'C-x',	'ReReadInitFile',
+		qq/"\cX\cX"/,	'ReReadInitFile',
+		qq/"\cX?"/,	'PossibleCompletions',
+		qq/"\cX*"/,	'InsertPossibleCompletions',
 		'C-y',	'Yank',
 		'C-z',	'Suspend',
 		'C-\\',	'Ding',
@@ -487,6 +501,8 @@ sub preinit
 		#qq/"\e[B"/,   'NextHistory',		# down  arrow
 		#qq/"\e[C"/,   'ForwardChar',		# right arrow
 		#qq/"\e[D"/,   'BackwardChar',		# left  arrow
+		qq/"\e[H"/,   'BeginningOfLine',        # home
+		qq/"\e[1~"/,  'HistorySearchForward',   # find
 		qq/"\e[3~"/,  'ToggleInsertMode',	# insert char
 		qq/"\e[4~"/,  'ToggleInsertMode',	# select
 		qq/"\e[5~"/,  'HistorySearchBackward',	# prev
@@ -568,7 +584,7 @@ sub preinit
 	defined $ {"$KeyMap{name}_27"}[ord $_];
       push(@add_bindings, "M-$_", 'DoLowercaseVersion');
     }
-    #&rl_bind(@add_bindings);
+    &rl_bind(@add_bindings);
     
     ## Vi keymap not yet supported...
     &InitKeymap(*vi_keymap, 'Ding', 'vi_keymap',
@@ -842,6 +858,16 @@ sub F_ReReadInitFile
     ##undef(&F_ReReadInitFile); ## you can do this if you're low on memory
 }
 
+sub readline_dumb {
+	print $term_OUT $prompt;
+        &Tk_loop if $Tk_toloop;
+	return undef if !defined($line = <$term_IN>);
+	chop($line);
+	$| = $oldbar;
+	select $old;
+	return $line;
+}
+
 
 ##
 ## This is it. Called as &readline'readline($prompt, $default),
@@ -859,8 +885,8 @@ sub readline
 	return $line;
     }
 
-    my $old = select $term_OUT;
-    my $oldbar = $|;
+    $old = select $term_OUT;
+    $oldbar = $|;
     local($|) = 1;
     local($input);
 
@@ -868,24 +894,23 @@ sub readline
     $prompt = defined($_[0]) ? $_[0] : 'INPUT> ';
 
     if ($dumb_term) {
-	print $term_OUT $prompt;
-        &Tk_loop if $Tk_toloop;
-	return undef if !defined($line = <$term_IN>);
-	chop($line);
-	$| = $oldbar;
-	select $old;
-	return $line;
+	return readline_dumb;
     }
 
-    my $defaultLine = defined $_[1] ? \$_[1] : \$rl_DefaultLine;
-    if (!$rl_Operate or $$defaultLine ne $rl_History[$rl_HistoryIndex]) {
-	## set history pointer at the end if default line
-	## is not from a previous 'Operate' command
+    # test if we resume an 'Operate' command
+    if ($rl_OperateCount > 0 && (!defined $_[1] || $_[1] eq '')) {
+	## it's from a valid previous 'Operate' command and
+	## user didn't give a default line
+	## we leave $rl_HistoryIndex untouched
+	$line = $rl_History[$rl_HistoryIndex];
+    } else {
+	## set history pointer at the end of history
 	$rl_HistoryIndex = $#rl_History + 1;
+	$rl_OperateCount = 0;
+	$line = defined $_[1] ? $_[1] : '';
     }
-    $rl_Operate = 0;
+    $rl_OperateCount-- if $rl_OperateCount > 0;
 
-    $line = $$defaultLine;
     $line_for_revert = $line;
 
 # I don't think we need to do this, actually...
@@ -909,7 +934,11 @@ sub readline
     $lastdelta = 0;		## Cursor was nowhere
     $si = 0;			## Want line to start left-justified
     $force_redraw = 1;		## Want to display with brute force.
-    &SetTTY;			## Put into raw mode.
+    if (!eval {SetTTY()}) {	## Put into raw mode.
+        warn $@ if $@;
+        $dumb_term = 1;
+	return readline_dumb;
+    }
     &redisplay(); 		## Show the line (just prompt at this point).
 
     *KeyMap = $var_EditingMode;
@@ -917,6 +946,9 @@ sub readline
     undef($ReturnEOF);		## ...unless this on, then return undef.
     undef($pending);		## If set, contains text to use as input.
     @undo = ();			## Undo history starts empty for each line.
+
+    # pretend input if we 'Operate' on more than one line
+    &F_OperateAndGetNext($rl_OperateCount) if $rl_OperateCount > 0;
 
     while (!defined($AcceptLine)) {
 	## get a character of input
@@ -937,9 +969,6 @@ sub readline
 	$LastCommandKilledText = $ThisCommandKilledText;
     }
 
-    ## set default for next input line
-    $rl_DefaultLine = $rl_Operate ? $rl_History[$rl_HistoryIndex] : '';
-
     undef @undo; ## Release the memory.
     &ResetTTY;   ## Restore the tty state.
     $| = $oldbar;
@@ -955,6 +984,7 @@ sub ctrl {
 }
 
 
+
 sub SetTTY {
     return if $dumb_term || $stdin_not_tty;
     #return system 'stty raw -echo' if defined &DB::DB;
@@ -964,7 +994,7 @@ sub SetTTY {
 #   system 'stty raw -echo';
 
     $sgttyb = ''; ## just to quiet "perl -w";
-    ioctl($term_IN,$TIOCGETP,$sgttyb) || die "Can't ioctl TIOCGETP: $!";
+  if ($useioctl && $^O ne 'solaris' && ioctl($term_IN,$TIOCGETP,$sgttyb)) {
     @tty_buf = unpack($sgttyb_t,$sgttyb);
     if (defined $ENV{OS2_SHELL}) {
       $tty_buf[3] &= ~$mode;
@@ -975,6 +1005,21 @@ sub SetTTY {
     }
     $sgttyb = pack($sgttyb_t,@tty_buf);
     ioctl($term_IN,$TIOCSETP,$sgttyb) || die "Can't ioctl TIOCSETP: $!";
+  } else {
+     warn <<EOW if $useioctl and not defined $ENV{PERL_READLINE_NOWARN};
+Can't ioctl TIOCGETP: $!
+Consider installing Term::ReadKey from CPAN site nearby
+	at http://www.perl.com/CPAN
+Or use
+	perl -MCPAN -e shell
+to reach CPAN. Falling back to 'stty'.
+	If you do not want to see this warning, set PERL_READLINE_NOWARN
+in your environment.
+EOW
+    $useioctl = 0;
+    system 'stty raw -echo' and die "Cannot call `stty': $!";
+  }
+  return 1;
 }
 
 sub ResetTTY {
@@ -985,7 +1030,7 @@ sub ResetTTY {
     }
 
 #   system 'stty -raw echo';
-
+  if ($useioctl) {
     ioctl($term_IN,$TIOCGETP,$sgttyb) || die "Can't ioctl TIOCGETP: $!";
     @tty_buf = unpack($sgttyb_t,$sgttyb);
     if (defined $ENV{OS2_SHELL}) {
@@ -997,6 +1042,9 @@ sub ResetTTY {
     }
     $sgttyb = pack($sgttyb_t,@tty_buf);
     ioctl($term_IN,$TIOCSETP,$sgttyb) || die "Can't ioctl TIOCSETP: $!";
+  } else {
+    system 'stty -raw echo' and die "Cannot call `stty': $!";
+  }
 }
 
 ##
@@ -1676,17 +1724,23 @@ sub F_TabInsert
     &F_SelfInsert($count, ord("\t"));
 }
 
+## Operate - accept the current line and fetch from the
+## history the next line relative to current line for default.
 sub F_OperateAndGetNext
 {
-    ## Operate - accept the current line and fetch from the
-    ## history the next line relative to current line for default.
+    my $count = shift;
 
     &F_AcceptLine;
 
-    # check if we have a next history entry
-    $rl_Operate = ++$rl_HistoryIndex < $#rl_History;
+    my $remainingEntries = $#rl_History - $rl_HistoryIndex;
+    if ($count > 0 && $remainingEntries >= 0) {  # there is something to repeat
+	if ($remainingEntries > 0) {  # if we are not on last line
+	    $rl_HistoryIndex++;       # fetch next one
+	    $count = $remainingEntries if $count > $remainingEntries;
+	}
+	$rl_OperateCount = $count;
+    }
 }
-
 
 ##
 ## Removes $count chars to left of cursor (if not at beginning of line).
@@ -2188,6 +2242,7 @@ sub F_DigitArgument
 	    }
 	} else {
 	    local(*KeyMap) = $var_EditingMode;
+	    &redisplay();
 	    &do_command(*KeyMap, $NumericArg, $ord);
 	    return;
 	}
@@ -2308,6 +2363,14 @@ sub F_PossibleCompletions
 }
 
 ##
+## List possible completions
+##
+sub F_InsertPossibleCompletions
+{
+    &complete_internal('*');
+}
+
+##
 ## Do a completion operation.
 ## If the last thing we did was a completion operation, we'll
 ## now list the options available (under normal emacs mode).
@@ -2370,17 +2433,16 @@ sub complete_internal
     }
 
     my $text = substr($line, $point, $end - $point);
+    $rl_completer_terminator_character = ' ';
     @matches = &completion_matches($rl_completion_function,$text,$line,$point);
 
     if (@matches == 0) {
 	&F_Ding;
     } elsif ($what_to_do eq "\t") {
 	my $replacement = shift(@matches);
-	$replacement .= ' ' if @matches == 1;
-	if (!$var_TcshCompleteMode) {
-	    &F_Ding if @matches != 1;
-	} else {
-	    &F_Ding if @matches != 1;
+	$replacement .= $rl_completer_terminator_character if @matches == 1;
+	&F_Ding if @matches != 1;
+	if ($var_TcshCompleteMode) {
 	    @tcsh_complete_selections = (@matches, $text);
 	    $tcsh_complete_start = $point;
 	    $tcsh_complete_len = length($replacement);
@@ -2397,7 +2459,10 @@ sub complete_internal
 	$force_redraw = 1;
     } elsif ($what_to_do eq '*') {
 	shift(@matches); ## remove common prefix.
-	substr($line, $point, $end-$point) = "@matches"; ## insert all.
+	local $" = $rl_completer_terminator_character;
+	my $replacement = "@matches$rl_completer_terminator_character";
+	substr($line, $point, $end-$point) = $replacement; ## insert all.
+	$D = $D - ($end - $point) + length($replacement);
     } else {
 	warn "\r\n[Internal error]";
     }

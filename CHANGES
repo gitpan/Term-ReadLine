@@ -11,3 +11,15 @@ After 0.91:
 	Couple of bugs with my $var = @_;
 	use SelfLoader; moved to DATA.
 	Works in XTERM on OS/2.
+0.93:
+	Updates to Operate, couple of keybindings added.
+	$rl_completer_terminator_character, $rl_correct_sw added.
+	Reload-init-file moved to C-x C-x.
+	C-x ? and C-x * list/insert possible completions (similar to
+		tcsh globbing).
+	For a second ReadLine interface ReadLine::Stub is used (unsuccessfully)?
+	C-x * moves cursor correctly.
+0.94:
+	Should work everywhere where stty works (possibly with a warning).
+	Warning says where to find TRK, switchable off.
+	ReadLine.pm removed from distribution.

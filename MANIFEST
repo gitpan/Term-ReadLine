@@ -1,7 +1,6 @@
 CHANGES
 MANIFEST
 Makefile.PL
-ReadLine.pm
 ReadLine/Perl.pm
 ReadLine/readline.pm
 README

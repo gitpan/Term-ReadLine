@@ -3,6 +3,10 @@ use Carp;
 @ISA = qw(Term::ReadLine::Stub);
 #require 'readline.pl';
 
+$VERSION = $VERSION = 0.93;
+
+# 0.93: Now falls back to Term::ReadLine::Stub for the second interface.
+
 sub readline {
   shift; 
   #my $in = 
@@ -25,7 +29,10 @@ $readline::rl_readline_name = undef; # To peacify -w
 $readline::rl_basic_word_break_characters = undef; # To peacify -w
 
 sub new {
-  warn "Cannot create second readline interface.\n" if defined $term;
+  if (defined $term) {
+    warn "Cannot create second readline interface, falling back to dumb.\n";
+    return Term::ReadLine::Stub::new @_;
+  }
   shift;			# Package
   if (@_) {
     if ($term) {

@@ -49,8 +49,14 @@ To install this module type
 		to redirect stdin and/or stdout.)
 	make install
 
-You may need to install Term::ReadKey first if your system is new (my
+You may need to install Term::ReadKey first if your system is new (Solaris
 is ;-(). (Available in standard places, checked with 1.98.)
+
+If you see something like
+
+Can't ioctl TIOCGETP: Invalid argument at ...
+
+this means you need ReadKey.
 
 AUTHOR BUGS
 ~~~~~~~~~~~
