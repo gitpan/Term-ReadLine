@@ -1,0 +1,95 @@
+LEGALESE
+~~~~~~~~
+     Copyright (c) 1995 Ilya Zakharevich. All rights reserved.
+     This program is free software; you can redistribute it and/or
+     modify it under the same terms as Perl itself.
+
+	You should have received a copy of the Perl license along with
+	Perl; see the file README in Perl distribution.
+ 
+	You should have received a copy of the GNU General Public License
+	along with Perl; see the file Copying.  If not, write to
+	the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+
+	You should have received a copy of the Artistic License
+	along with Perl; see the file Artistic.
+
+
+Author of this software makes no claim whatsoever about suitability,
+reliability, edability, editability or usability of this product, and
+should not be kept liable for any damage resulting from the use of
+it. If you can use it, you are in luck, if not, I should not be kept
+responsible. Keep a handy copy of your backup tape at hand.
+
+WHAT
+~~~~
+
+This is a quick implementation of the minimal interface to Readline
+libraries. The implementation is made in Perl (mostly) by Jeffrey
+Friedl. The only thing this library does is to make it conformant (and
+add some minimal changes, like using Term::ReadKey if present, and
+correct work under xterm). 
+
+Due to some bug in debugger support, it works in debugger on a verge
+of breakup (under the version that supports readline). By default,
+ReadLine is enabled under debugger, to disable it set the environment
+variable PERLDB_RL to 'no' (without quotes).
+
+INSTALL
+~~~~~~~
+
+To install this module type
+
+	perl Makefile.PL
+	make
+	make test
+		or (with newer makemaker)
+	make test_dynamic
+		(Check whether you are satisfied with the results. Try
+		to redirect stdin and/or stdout.)
+	make install
+
+You may need to install Term::ReadKey first if your system is new (my
+is ;-(). (Available in standard places, checked with 1.98.)
+
+AUTHOR BUGS
+~~~~~~~~~~~
+Ilya Zakharevich
+ilya@math.ohio-state.edu
+
+Std dstribution site: ftp://ftp.math.ohio-state.edu/pub/users/ilya/perl
+
+While the following remark may be still true, the bug in perl that
+caused all the grieve is localized now and a patch is issued. Anyway,
+the workaround is in the ReadLine code for a long time.
+
+Code is very fragile so far. It works, but very small changes can kill
+it. In particular, to have it work under debugger I needed to remove
+the subroutine &preinit and substitute the call to the actual text of
+the subroutine (in Term/ReadLine/ReadLine/readline.pl).
+	Another bug is that you cannot uncomment the line 434 (this
+one can be related to ReadKey package, but the previous one manifests
+itself even when NO dynamically loaded code is present).
+
+CHANGES
+~~~~~~~
+0.2: Test added.
+0.3: Filehandles changed to \* from *, MinLine works, works with
+debugger.
+0.4: Some bugs with $| corrected. Application name is set. Works under
+OS/2 without ReadKey. Should work under DOS with minimal changes (see
+$inDOS in ReadLine/readline.pl).
+0.5: Code to support ReadLine'less debugger moved to debugger. One
+user reported that having .inputrc triggers the same bug that buggered
+earlier versions of the package. Request for a second readline is
+tried to be executed first, dying only if should work on a different terminal.
+0.6: The above bug was due to missing vi keymap. Dirty workaround
+added.
+0.7: We made ReadMode on term_OUT ;-(
+     Better workaround for return of globs from a sub.
+     Word break chars more suitable for Perl.
+0.8: Insert, Operate, HistorySearch added.
+     Rudimental support for tk being active during ReadLine.
+     Should work better if ReadKey is present, but did not bootstrap.
+     SelfLoader (and AutoLoader) supported (uncomment the lines
+	with SelfLoader, ISA, and __DATA__).

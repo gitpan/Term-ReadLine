@@ -1,0 +1,7 @@
+MANIFEST
+Makefile.PL
+ReadLine.pm
+ReadLine/Perl.pm
+ReadLine/readline.pm
+README
+test.pl
