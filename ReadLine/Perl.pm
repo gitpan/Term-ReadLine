@@ -1,11 +1,9 @@
 package Term::ReadLine::Perl;
 use Carp;
-@ISA = qw(Term::ReadLine::Stub);
+@ISA = qw(Term::ReadLine::Stub Term::ReadLine::Perl::AU);
 #require 'readline.pl';
 
-$VERSION = $VERSION = 0.93;
-
-# 0.93: Now falls back to Term::ReadLine::Stub for the second interface.
+$VERSION = $VERSION = 0.96;
 
 sub readline {
   shift; 
@@ -31,7 +29,7 @@ $readline::rl_basic_word_break_characters = undef; # To peacify -w
 sub new {
   if (defined $term) {
     warn "Cannot create second readline interface, falling back to dumb.\n";
-    return Term::ReadLine::Stub::new @_;
+    return Term::ReadLine::Stub::new(@_);
   }
   shift;			# Package
   if (@_) {
@@ -59,7 +57,7 @@ sub new {
   }
   eval {require Term::ReadLine::readline}; die $@ if $@;
   # The following is here since it is mostly used for perl input:
-  $readline::rl_basic_word_break_characters .= '-:+/*,[])}';
+  # $readline::rl_basic_word_break_characters .= '-:+/*,[])}';
   $term = bless [$readline::term_IN,$readline::term_OUT];
 }
 sub ReadLine {'Term::ReadLine::readline_pl'}
@@ -78,5 +76,40 @@ sub AddHistory {
   $readline::rl_HistoryIndex = @readline::rl_History + @_;
 }
 %features =  (appname => 1, minline => 1, autohistory => 1, getHistory => 1,
-	      setHistory => 1, addHistory => 1, preput => 1, tkRunning => 1);
+	      setHistory => 1, addHistory => 1, preput => 1, tkRunning => 1,
+	      attribs => 1,
+	     );
 sub Features { \%features; }
+# my %attribs;
+tie %attribs, 'Term::ReadLine::Perl::Tie' or die ;
+sub Attribs {
+  \%attribs;
+}
+sub DESTROY {}
+
+package Term::ReadLine::Perl::AU;
+
+sub AUTOLOAD {
+  { $AUTOLOAD =~ s/.*:://; }		# preserve match data
+  my $name = "readline::rl_$AUTOLOAD";
+  die "Cannot do `$AUTOLOAD' in Term::ReadLine::Perl" 
+    unless exists $readline::{"rl_$AUTOLOAD"};
+  *$AUTOLOAD = sub { shift; &$name };
+  goto &$AUTOLOAD;
+}
+
+package Term::ReadLine::Perl::Tie;
+
+sub TIEHASH { bless {} }
+sub DESTROY {}
+
+sub STORE {
+  my ($self, $name) = (shift, shift);
+  $ {'readline::rl_' . $name} = shift;
+}
+sub FETCH {
+  my ($self, $name) = (shift, shift);
+  $ {'readline::rl_' . $name};
+}
+
+1;

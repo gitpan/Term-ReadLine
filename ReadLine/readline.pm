@@ -39,7 +39,7 @@ my $useioctl = 1;
 ## while writing this), and for Roland Schemers whose line_edit.pl I used
 ## as an early basis for this.
 ##
-$VERSION = $VERSION = 0.95;
+$VERSION = $VERSION = 0.96;
 
 ## 940817.008 - Added $var_CompleteAddsuffix.
 ##		Now recognizes window-change signals (at least on BSD).
@@ -88,18 +88,6 @@ $VERSION = $VERSION = 0.95;
 
 &preinit;
 &init;
-
-# Experimental stuff to make Tk running:
-
-$Tk_registered = 0;
-$Tk_giveup = 0;
-$Tk_count_handle = 0;
-$Tk_count_DoOne = 0;
-$Tk_count_loop = 0;
-$Tk_toloop = 0;
-
-# Do `$readline::Tk_toloop=1' to make Tk active during readline, 0 to
-# switch off.
 
 # # # # use strict 'vars';
 
@@ -264,7 +252,7 @@ sub get_window_size
     }
     
     for $hook (@winchhooks) {
-      eval {&$hook()}; warn $@ if $@;
+      eval {&$hook()}; warn $@ if $@ and $^W;
     }
     local $^W = 0;		# WINCH may be illegal...
     $SIG{'WINCH'} = "readline::get_window_size";
@@ -701,7 +689,7 @@ sub actually_do_binding
     while (@keys) {
       if (defined($KeyMap[$key]) && ($KeyMap[$key] ne 'F_PrefixMeta')) {
 	warn "Warning$InputLocMsg: ".
-	  "Re-binding char #$key from [$KeyMap[$key]] to meta.\n";
+	  "Re-binding char #$key from [$KeyMap[$key]] to meta.\n" if $^W;
       }
       $KeyMap[$key] = 'F_PrefixMeta';
       $map = "$KeyMap{'name'}_$key";
@@ -714,7 +702,7 @@ sub actually_do_binding
 	&& $func ne 'PrefixMeta')
       {
 	warn "Warning$InputLocMsg: ".
-	  " Re-binding char #$key to non-meta ($func)\n";
+	  " Re-binding char #$key to non-meta ($func)\n" if $^W;
       }
     $KeyMap[$key] = "F_$func";
   }
@@ -738,7 +726,7 @@ sub rl_bind
 
 	# Temporary disabled
 	if (!$autoload_broken and !defined($ {'readline::'}{"F_$func"})) {
-	    warn "Warning$InputLocMsg: bad bind function [$func]\n";
+	    warn "Warning$InputLocMsg: bad bind function [$func]\n" if $^W;
 	    next;
 	}
 
@@ -786,7 +774,7 @@ sub rl_bind
 	    elsif ($key =~ /^(newline|lfd)$/i) { $key = "\n";   }
 	    elsif ($key =~ /^(escape|esc)$/i)  { $key = "\e";   }
 	    elsif (length($key) > 1) {
-	        warn "Warning$InputLocMsg: strange binding [$orig]\n";
+	        warn "Warning$InputLocMsg: strange binding [$orig]\n" if $^W;
 	    }
 	    $key = ord($key);
 	    $key = &ctrl($key) if $isctrl;
@@ -858,7 +846,7 @@ sub F_ReReadInitFile
 	    &rl_bind($1, $2);
 	} else {
 	    chop;
-	    warn "\rWarning$InputLocMsg: Bad line [$_]\n";
+	    warn "\rWarning$InputLocMsg: Bad line [$_]\n" if $^W;
 	}
     }
     close(RC);
@@ -867,8 +855,8 @@ sub F_ReReadInitFile
 
 sub readline_dumb {
 	print $term_OUT $prompt;
-        &Tk_loop if $Tk_toloop;
-	return undef if !defined($line = <$term_IN>);
+	return undef
+          if !defined($line = $Term::ReadLine::Perl::term->get_line);
 	chop($line);
 	$| = $oldbar;
 	select $old;
@@ -882,11 +870,10 @@ sub readline_dumb {
 ##
 sub readline
 {
-    if ($Tk_toloop && defined &Tk::fileevent && !$Tk_registered) {
-      Tk_register_Tk();
-    }
+    $Term::ReadLine::Perl::term->register_Tk 
+      if not $Term::ReadLine::registered and $Term::ReadLine::toloop
+	and defined &Tk::DoOneEvent;
     if ($stdin_not_tty) {
-        #&Tk_loop if $Tk_toloop;
 	return undef if !defined($line = <$term_IN>);
 	chop($line);
 	return $line;
@@ -1225,12 +1212,11 @@ sub min     { $_[0] < $_[1] ? $_[0] : $_[1]; }
 
 sub rl_getc {
 	  if (defined $term_readkey) { # XXXX ???
-	    $Tk_count_rk++;
-	    &Tk_loop if $Tk_toloop;
+	    $Term::ReadLine::Perl::term->Tk_loop 
+	      if $Term::ReadLine::toloop && defined &Tk::DoOneEvent;
 	    $key = Term::ReadKey::ReadKey(0, $term_IN);
 	  } else {
-	    &Tk_loop if $Tk_toloop;
-	    $key = getc $term_IN;
+	    $key = $Term::ReadLine::Perl::term->get_c;
 	  }
 }
 
@@ -1360,8 +1346,6 @@ sub F_Suspend;
 sub F_Ding;
 sub F_PossibleCompletions;
 sub F_Complete;
-sub Tk_register_Tk;
-
 # Comment these 2 lines and __DATA__ line somewhere below to disable
 # selfloader.
 
@@ -1371,20 +1355,6 @@ use SelfLoader;
 __DATA__
 
 # From here on anything may be autoloaded
-
-sub Tk_handle {$Tk_giveup = 1;$Tk_count_handle++}
-
-sub Tk_loop {
-  $Tk_count_DoOne++, Tk::DoOneEvent(0) until $Tk_giveup;
-  $Tk_count_loop++;
-  $Tk_giveup = 0;
-}
-
-sub Tk_register_Tk {
-  $Tk_registered++ || Tk->fileevent($term_IN,'readable',\&Tk_handle);
-  # $Tk_toloop = 1;
-}
-
 
 sub max     { $_[0] > $_[1] ? $_[0] : $_[1]; }
 sub isupper { ord($_[0]) >= ord('A') && ord($_[0]) <= ord('Z'); }
@@ -1437,12 +1407,12 @@ sub rl_set
     local(*V) = $ {'readline::'}{"var_$_"};
     if (!defined($V)) {
 	warn("Warning$InputLocMsg:\n".
-	     "  Invalid variable `$var'\n");
+	     "  Invalid variable `$var'\n") if $^W;
     } elsif (!defined($V{$val})) {
 	local(@selections) = keys(%V);
 	warn("Warning$InputLocMsg:\n".
 	     "  Invalid value `$val' for variable `$var'.\n".
-	     "  Choose from [@selections].\n");
+	     "  Choose from [@selections].\n") if $^W;
     } else {
 	$return = $V;
         $V = $V{$val}; ## make the setting

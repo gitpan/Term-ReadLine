@@ -30,10 +30,8 @@ Friedl. The only thing this library does is to make it conformant (and
 add some minimal changes, like using Term::ReadKey if present, and
 correct work under xterm). 
 
-Due to some bug in debugger support, it works in debugger on a verge
-of breakup (under the version that supports readline). By default,
-ReadLine is enabled under debugger, to disable it set the environment
-variable PERLDB_RL to 'no' (without quotes).
+(In fact this is an understatement now, a lot of additions are made,
+see CHANGES...)
 
 INSTALL
 ~~~~~~~
@@ -58,6 +56,10 @@ Can't ioctl TIOCGETP: Invalid argument at ...
 
 this means you need ReadKey.
 
+Note that as of 0.95 Term/ReadLine.pm is unbundled to make CPAN.pm happier.
+On the other hand, if you get newer Term/ReadLine.pm (say, by installing
+newer Perl) you may get more features enabled.
+
 AUTHOR BUGS
 ~~~~~~~~~~~
 Ilya Zakharevich
@@ -65,39 +67,3 @@ ilya@math.ohio-state.edu
 
 Std dstribution site: ftp://ftp.math.ohio-state.edu/pub/users/ilya/perl
 
-While the following remark may be still true, the bug in perl that
-caused all the grieve is localized now and a patch is issued. Anyway,
-the workaround is in the ReadLine code for a long time.
-
-Code is very fragile so far. It works, but very small changes can kill
-it. In particular, to have it work under debugger I needed to remove
-the subroutine &preinit and substitute the call to the actual text of
-the subroutine (in Term/ReadLine/ReadLine/readline.pl).
-	Another bug is that you cannot uncomment the line 434 (this
-one can be related to ReadKey package, but the previous one manifests
-itself even when NO dynamically loaded code is present).
-
-CHANGES
-~~~~~~~
-0.2: Test added.
-0.3: Filehandles changed to \* from *, MinLine works, works with
-debugger.
-0.4: Some bugs with $| corrected. Application name is set. Works under
-OS/2 without ReadKey. Should work under DOS with minimal changes (see
-$inDOS in ReadLine/readline.pl).
-0.5: Code to support ReadLine'less debugger moved to debugger. One
-user reported that having .inputrc triggers the same bug that buggered
-earlier versions of the package. Request for a second readline is
-tried to be executed first, dying only if should work on a different terminal.
-0.6: The above bug was due to missing vi keymap. Dirty workaround
-added.
-0.7: We made ReadMode on term_OUT ;-(
-     Better workaround for return of globs from a sub.
-     Word break chars more suitable for Perl.
-0.8: Insert, Operate, HistorySearch added.
-     Rudimental support for tk being active during ReadLine.
-     Should work better if ReadKey is present, but did not bootstrap.
-     SelfLoader (and AutoLoader) supported (uncomment the lines
-	with SelfLoader, ISA, and __DATA__).
-0.9: tkRunning corrected. New attributes in Features: getHistory,
-	setHistory, and new methods: GetHistory and SetHistory.
