@@ -23,3 +23,13 @@ After 0.91:
 	Should work everywhere where stty works (possibly with a warning).
 	Warning says where to find TRK, switchable off.
 	ReadLine.pm removed from distribution.
+0.95:
+		(from Jim Meyering):
+	* readline.pm (preinit): Recognize bash's `input-meta' as a
+	valid variable name.
+	(F_ReReadInitFile): Recognize key binding directives in which
+	the double-quoted RHS contains white space.
+	(rl_set): Treat bash's `visible-stats' as a synonym of
+	CompleteAddsuffix.
+	Workaround against Term::ReadKey::ReadMode returning undef
+		(thanks to Helmut Jarausch).

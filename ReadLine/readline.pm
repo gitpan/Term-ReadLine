@@ -39,7 +39,7 @@ my $useioctl = 1;
 ## while writing this), and for Roland Schemers whose line_edit.pl I used
 ## as an early basis for this.
 ##
-$VERSION = $VERSION = 0.94;
+$VERSION = $VERSION = 0.95;
 
 ## 940817.008 - Added $var_CompleteAddsuffix.
 ##		Now recognizes window-change signals (at least on BSD).
@@ -285,6 +285,11 @@ sub preinit
     #$var_EditingMode{'vi'} = *vi_keymap;
     $var_EditingMode{'vi'} = *emacs_keymap;
     $var_EditingMode = $var_EditingMode{'emacs'};
+
+    ## not yet supported... always on
+    $var_InputMeta = 1;
+    $var_InputMeta{'Off'} = 0;
+    $var_InputMeta{'On'} = 1;
 
     ## not yet supported... always on
     $var_OutputMeta = 1;
@@ -847,6 +852,8 @@ sub F_ReReadInitFile
 	    ## skipping this one....
 	} elsif (m/\s*set\s+(\S+)\s+(\S*)\s*$/) {
 	    &rl_set($1, $2, $file);
+	} elsif (m/^\s*(\S+):\s+("[^\"]*")\s*$/) {
+	    &rl_bind($1, $2);
 	} elsif (m/^\s*(\S+):\s+(\S+)\s*$/) {
 	    &rl_bind($1, $2);
 	} else {
@@ -989,7 +996,8 @@ sub SetTTY {
     return if $dumb_term || $stdin_not_tty;
     #return system 'stty raw -echo' if defined &DB::DB;
     if (defined $term_readkey) {
-      return Term::ReadKey::ReadMode(4, $term_IN);
+      Term::ReadKey::ReadMode(4, $term_IN);
+      return 1;
     }
 #   system 'stty raw -echo';
 
@@ -1016,8 +1024,9 @@ to reach CPAN. Falling back to 'stty'.
 	If you do not want to see this warning, set PERL_READLINE_NOWARN
 in your environment.
 EOW
-    $useioctl = 0;
-    system 'stty raw -echo' and die "Cannot call `stty': $!";
+					# '; # For Emacs. 
+     $useioctl = 0;
+     system 'stty raw -echo' and die "Cannot call `stty': $!";
   }
   return 1;
 }
@@ -1417,6 +1426,8 @@ sub tolower { &isupper ? pack('c', ord($_[0])-ord('A')+ord('a')) : $_[0];}
 sub rl_set
 {
     local($var, $val) = @_;
+
+    $var = 'CompleteAddsuffix' if $var eq 'visible-stats';
 
     ## if the variable is in the form "some-name", change to "SomeName"
     local($_) = "\u$var";
