@@ -1,7 +1,11 @@
-CHANGES
+Changes
+LICENSE
 MANIFEST
+META.json
+META.yml
 Makefile.PL
-ReadLine/Perl.pm
-ReadLine/readline.pm
 README
-test.pl
+dist.ini
+lib/Term/ReadLine.pm
+t/ReadLine.t
+t/release-pod-syntax.t
