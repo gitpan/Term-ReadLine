@@ -9,21 +9,20 @@ use ExtUtils::MakeMaker 6.30;
 
 
 my %WriteMakefileArgs = (
-  'ABSTRACT' => 'Perl interface to various C<readline> packages.
-If no real package is found, substitutes stubs instead of basic functions.',
-  'AUTHOR' => 'The Perl 5 Porters',
-  'BUILD_REQUIRES' => {},
-  'CONFIGURE_REQUIRES' => {
-    'ExtUtils::MakeMaker' => '6.30'
+  "ABSTRACT" => "Perl interface to various C<readline> packages.\nIf no real package is found, substitutes stubs instead of basic functions.",
+  "AUTHOR" => "The Perl 5 Porters",
+  "BUILD_REQUIRES" => {},
+  "CONFIGURE_REQUIRES" => {
+    "ExtUtils::MakeMaker" => "6.30"
   },
-  'DISTNAME' => 'Term-ReadLine',
-  'EXE_FILES' => [],
-  'LICENSE' => 'perl',
-  'NAME' => 'Term::ReadLine',
-  'PREREQ_PM' => {},
-  'VERSION' => '1.07',
-  'test' => {
-    'TESTS' => 't/*.t'
+  "DISTNAME" => "Term-ReadLine",
+  "EXE_FILES" => [],
+  "LICENSE" => "perl",
+  "NAME" => "Term::ReadLine",
+  "PREREQ_PM" => {},
+  "VERSION" => "1.09",
+  "test" => {
+    "TESTS" => "t/*.t"
   }
 );
 
