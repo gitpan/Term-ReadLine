@@ -1,7 +1,7 @@
 
 
 This archive contains the distribution Term-ReadLine,
-version 1.09:
+version 1.10:
 
   Perl interface to various C<readline> packages.
 If no real package is found, substitutes stubs instead of basic functions.
