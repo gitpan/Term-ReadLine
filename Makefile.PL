@@ -21,7 +21,7 @@ my %WriteMakefileArgs = (
   "NAME" => "Term::ReadLine",
   "PREREQ_PM" => {},
   "TEST_REQUIRES" => {},
-  "VERSION" => "1.13",
+  "VERSION" => "1.14",
   "test" => {
     "TESTS" => "t/*.t"
   }

@@ -16,7 +16,7 @@ resources:
   bugtracker: http://rt.perl.org/rt3/
   homepage: http://metacpan.org/release/Term-ReadLine
   repository: git://github.com/rafl/term-readline.git
-version: 1.13
+version: 1.14
 x_Dist_Zilla:
   perl:
     version: 5.018000
